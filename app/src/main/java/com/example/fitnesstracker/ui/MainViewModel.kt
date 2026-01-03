@@ -18,6 +18,7 @@ data class FitnessUiState(
     val exercises: List<Exercise> = emptyList(),
     val selectedWorkoutId: String? = null,
     val selectedWorkout: Workout? = null,
+    val recentlyCreatedWorkoutId: String? = null,
     val isLoading: Boolean = false,
     val isActionRunning: Boolean = false,
     val errorMessage: String? = null,
@@ -65,6 +66,10 @@ class MainViewModel(
         _uiState.update { it.copy(errorMessage = null, infoMessage = null) }
     }
 
+    fun consumeRecentlyCreatedWorkout() {
+        _uiState.update { it.copy(recentlyCreatedWorkoutId = null) }
+    }
+
     fun selectWorkout(workoutId: String, force: Boolean = false, infoMessage: String? = null) {
         viewModelScope.launch {
             val alreadySelected = _uiState.value.selectedWorkout?.id == workoutId
@@ -108,7 +113,7 @@ class MainViewModel(
             return
         }
         viewModelScope.launch {
-            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
+            _uiState.update { it.copy(isActionRunning = true, errorMessage = null, recentlyCreatedWorkoutId = null) }
             val result = repository.createWorkout(
                 date = trimmedDate,
                 notes = notes?.takeUnless { it.isNullOrBlank() },
@@ -116,7 +121,11 @@ class MainViewModel(
             )
             result.fold(
                 onSuccess = { id ->
-                    refreshAfterAction(selectWorkoutId = id, infoMessage = "Workout created")
+                    refreshAfterAction(
+                        selectWorkoutId = id,
+                        infoMessage = "Workout created",
+                        createdWorkoutId = id
+                    )
                 },
                 onFailure = { error ->
                     _uiState.update { it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not create workout")) }
@@ -207,7 +216,8 @@ class MainViewModel(
 
     private suspend fun refreshAfterAction(
         selectWorkoutId: String? = null,
-        infoMessage: String? = null
+        infoMessage: String? = null,
+        createdWorkoutId: String? = null
     ) {
         val workoutsResult = repository.fetchWorkouts()
         val exercisesResult = repository.fetchExercises()
@@ -218,7 +228,8 @@ class MainViewModel(
                 isActionRunning = false,
                 errorMessage = workoutsResult.exceptionOrNull()?.message
                     ?: exercisesResult.exceptionOrNull()?.message,
-                infoMessage = infoMessage ?: state.infoMessage
+                infoMessage = infoMessage ?: state.infoMessage,
+                recentlyCreatedWorkoutId = createdWorkoutId ?: state.recentlyCreatedWorkoutId
             )
         }
         selectWorkoutId?.let { selectWorkout(it, force = true, infoMessage = infoMessage) }
