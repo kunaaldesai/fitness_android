@@ -2,7 +2,9 @@
 
 package com.example.fitnesstracker.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,11 +20,10 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -39,11 +40,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.menuAnchor
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitnesstracker.data.remote.Exercise
@@ -421,23 +423,24 @@ private fun AddWorkoutItemForm(
             return
         }
         var expanded by remember(workoutId, exercises) { mutableStateOf(false) }
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
-        ) {
+        var textFieldWidth by remember { mutableStateOf(0) }
+        val density = LocalDensity.current
+        Box {
             OutlinedTextField(
                 value = exercises.firstOrNull { it.id == selectedExerciseId }?.name ?: "",
                 onValueChange = {},
                 label = { Text("Exercise") },
                 modifier = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .onGloballyPositioned { textFieldWidth = it.size.width }
+                    .clickable { expanded = !expanded },
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) }
             )
-            ExposedDropdownMenu(
+            DropdownMenu(
                 expanded = expanded,
-                onDismissRequest = { expanded = false }
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.width(with(density) { textFieldWidth.toDp() })
             ) {
                 exercises.forEach { exercise ->
                     DropdownMenuItem(
