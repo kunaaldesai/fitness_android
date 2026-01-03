@@ -25,5 +25,5 @@ google-services.json
 *.keystore
 *.jks
 users.py
-workout_helpers.py
+workouts_helpers.py
 workouts.py
