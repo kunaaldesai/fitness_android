@@ -2,17 +2,27 @@
 
 package com.example.fitnesstracker.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,19 +32,34 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.DirectionsRun
+import androidx.compose.material.icons.rounded.DirectionsWalk
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.FitnessCenter
-import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Pool
+import androidx.compose.material.icons.rounded.SelfImprovement
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -49,8 +74,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,6 +85,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -71,17 +95,61 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitnesstracker.data.remote.Exercise
-import com.example.fitnesstracker.data.remote.Workout
 import com.example.fitnesstracker.data.remote.WorkoutItem
 import com.example.fitnesstracker.data.remote.WorkoutSet
+import com.example.fitnesstracker.ui.theme.Blue500
+import com.example.fitnesstracker.ui.theme.Orange500
+import com.example.fitnesstracker.ui.theme.Purple500
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 
-private val headerDateFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d")
-private val shortDateFormatter = DateTimeFormatter.ofPattern("MMM d")
 private val compactWidthThreshold = 520.dp
+
+private data class StatSummary(
+    val title: String,
+    val value: String,
+    val accent: Color,
+    val icon: ImageVector,
+    val progress: Float
+)
+
+private data class WorkoutHighlight(
+    val title: String,
+    val subtitle: String,
+    val duration: String,
+    val calories: String,
+    val badge: String
+)
+
+private data class ProgressDay(
+    val label: String,
+    val value: String,
+    val progress: Float,
+    val isActive: Boolean = false
+)
+
+private data class ActivityItem(
+    val title: String,
+    val subtitle: String,
+    val primary: String,
+    val secondary: String,
+    val icon: ImageVector,
+    val accent: Color
+)
+
+private data class NavItem(
+    val label: String,
+    val icon: ImageVector
+)
+
+private val bottomNavItems = listOf(
+    NavItem("Home", Icons.Rounded.Home),
+    NavItem("Explore", Icons.Rounded.Explore),
+    NavItem("Analytics", Icons.Rounded.BarChart),
+    NavItem("Profile", Icons.Rounded.Person)
+)
 
 sealed interface FitnessDestination {
     data object Home : FitnessDestination
@@ -95,6 +163,7 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     var destination by remember { mutableStateOf<FitnessDestination>(FitnessDestination.Home) }
+    val isHome = destination == FitnessDestination.Home
 
     state.errorMessage?.let { message ->
         LaunchedEffect(message) {
@@ -118,7 +187,17 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            if (isHome) {
+                HomeFloatingActionButton(onClick = { destination = FitnessDestination.CreateWorkout })
+            }
+        },
+        bottomBar = {
+            if (isHome) {
+                BottomNavBar()
+            }
+        }
     ) { padding ->
         when (val screen = destination) {
             FitnessDestination.Home -> HomeScreen(
@@ -128,8 +207,6 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
                     destination = FitnessDestination.WorkoutDetail(id)
                     viewModel.selectWorkout(id, force = true)
                 },
-                onOpenCreateExercise = { destination = FitnessDestination.CreateExercise },
-                onRefresh = viewModel::refreshEverything,
                 modifier = Modifier.padding(padding)
             )
 
@@ -172,93 +249,207 @@ private fun HomeScreen(
     state: FitnessUiState,
     onOpenCreateWorkout: () -> Unit,
     onOpenWorkout: (String) -> Unit,
-    onOpenCreateExercise: () -> Unit,
-    onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedDate by rememberSaveable { mutableStateOf(LocalDate.now()) }
-    var showDatePicker by remember { mutableStateOf(false) }
-    val workoutsForDay = remember(state.workouts, selectedDate) {
-        state.workouts.filter { it.date == selectedDate.toString() }
+    val displayName = state.user?.firstName?.takeIf { it.isNotBlank() } ?: "Alex"
+    val streakCount = remember(state.workouts) {
+        if (state.workouts.isNotEmpty()) state.workouts.size.coerceAtMost(12) else 12
+    }
+    val highlightWorkout = remember(state.workouts) { state.workouts.firstOrNull() }
+    val highlight = remember(highlightWorkout) {
+        WorkoutHighlight(
+            title = highlightWorkout?.notes?.takeIf { it.isNotBlank() } ?: "Upper Body Power",
+            subtitle = highlightWorkout?.items?.takeIf { it.isNotEmpty() }
+                ?.let { "Strength - ${it.size} exercises" }
+                ?: "Strength - Intermediate",
+            duration = "45 min",
+            calories = "320 Kcal",
+            badge = if (highlightWorkout != null) "Scheduled" else "Suggested"
+        )
+    }
+    val stats = listOf(
+        StatSummary("Kcal", "450", Orange500, Icons.Rounded.LocalFireDepartment, 0.75f),
+        StatSummary("Time", "45m", Blue500, Icons.Rounded.Timer, 0.5f),
+        StatSummary("Steps", "3.2k", MaterialTheme.colorScheme.primary, Icons.Rounded.DirectionsWalk, 0.4f)
+    )
+    val progressDays = listOf(
+        ProgressDay("Mon", "20 min", 0.4f),
+        ProgressDay("Tue", "45 min", 0.7f),
+        ProgressDay("Wed", "15 min", 0.3f),
+        ProgressDay("Thu", "60 min", 0.85f, isActive = true),
+        ProgressDay("Fri", "30 min", 0.5f),
+        ProgressDay("Sat", "10 min", 0.2f),
+        ProgressDay("Sun", "Rest", 0.1f)
+    )
+    val activityItems = remember(state.workouts) {
+        if (state.workouts.isNotEmpty()) {
+            val icons = listOf(Icons.Rounded.DirectionsRun, Icons.Rounded.SelfImprovement, Icons.Rounded.Pool)
+            val accents = listOf(Orange500, Purple500, Blue500)
+            state.workouts.sortedByDescending { it.date ?: "" }
+                .take(3)
+                .mapIndexed { index, workout ->
+                    ActivityItem(
+                        title = workout.notes?.takeIf { it.isNotBlank() } ?: "Workout Session",
+                        subtitle = workout.date?.let { "Logged on $it" } ?: "Recent activity",
+                        primary = "${workout.items.size} exercises",
+                        secondary = "${workout.items.sumOf { it.sets.size }} sets",
+                        icon = icons[index % icons.size],
+                        accent = accents[index % accents.size]
+                    )
+                }
+        } else {
+            listOf(
+                ActivityItem(
+                    title = "Morning Run",
+                    subtitle = "Yesterday, 6:30 AM",
+                    primary = "5.2 km",
+                    secondary = "32 min",
+                    icon = Icons.Rounded.DirectionsRun,
+                    accent = Orange500
+                ),
+                ActivityItem(
+                    title = "Yoga Flow",
+                    subtitle = "Oct 24, 5:00 PM",
+                    primary = "30 min",
+                    secondary = "120 kcal",
+                    icon = Icons.Rounded.SelfImprovement,
+                    accent = Purple500
+                ),
+                ActivityItem(
+                    title = "Swimming",
+                    subtitle = "Oct 22, 7:00 AM",
+                    primary = "1200 m",
+                    secondary = "45 min",
+                    icon = Icons.Rounded.Pool,
+                    accent = Blue500
+                )
+            )
+        }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val isCompact = maxWidth < compactWidthThreshold
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.background,
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                            )
+                        )
                     )
-                )
             )
-    ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                HomeHeader(
-                    userName = state.user?.firstName ?: "Athlete",
-                    selectedDate = selectedDate,
-                    onAddWorkout = onOpenCreateWorkout,
-                    onPickDate = { showDatePicker = true }
-                )
-            }
-            item {
-                QuickActionsRow(
-                    isLoading = state.isLoading,
-                    onRefresh = onRefresh,
-                    onCreateExercise = onOpenCreateExercise
-                )
-            }
-            item {
-                Text(
-                    "Sessions for ${selectedDate.format(headerDateFormatter)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-            if (workoutsForDay.isEmpty()) {
-                item {
-                    EmptyStateCard(onOpenCreateWorkout = onOpenCreateWorkout)
-                }
-            } else {
-                items(workoutsForDay, key = { it.id }) { workout ->
-                    WorkoutSummaryCard(
-                        workout = workout,
-                        onOpenWorkout = { onOpenWorkout(workout.id) }
+            Box(
+                modifier = Modifier
+                    .size(240.dp)
+                    .offset(x = 180.dp, y = (-60).dp)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
                     )
-                }
-            }
-            item { Spacer(modifier = Modifier.height(12.dp)) }
-        }
-
-        if (showDatePicker) {
-            val datePickerState = rememberDatePickerState(
-                initialSelectedDateMillis = selectedDate.toEpochMillis()
             )
-            DatePickerDialog(
-                onDismissRequest = { showDatePicker = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            datePickerState.selectedDateMillis?.let {
-                                selectedDate = it.toLocalDate()
-                            }
-                            showDatePicker = false
-                        }
-                    ) { Text("Apply") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
-                }
+            Box(
+                modifier = Modifier
+                    .size(200.dp)
+                    .offset(x = (-80).dp, y = 320.dp)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                Blue500.copy(alpha = 0.12f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
+                    )
+            )
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 140.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                DatePicker(state = datePickerState)
+                item {
+                    StaggeredItem(delayMillis = 0) {
+                        HomeHeader(
+                            userName = displayName,
+                            streakCount = streakCount,
+                            notificationCount = 1,
+                            showStreakInline = !isCompact
+                        )
+                    }
+                }
+                if (isCompact) {
+                    item {
+                        StaggeredItem(delayMillis = 80) {
+                            DailyStreakCard(streakCount = streakCount)
+                        }
+                    }
+                }
+                item {
+                    StaggeredItem(delayMillis = 140) {
+                        StatsSummaryRow(stats = stats)
+                    }
+                }
+                item {
+                    StaggeredItem(delayMillis = 200) {
+                        TodayWorkoutSection(
+                            highlight = highlight,
+                            onStartWorkout = {
+                                highlightWorkout?.let { onOpenWorkout(it.id) } ?: onOpenCreateWorkout()
+                            },
+                            ctaLabel = if (highlightWorkout != null) "Start Workout" else "Create Workout"
+                        )
+                    }
+                }
+                item {
+                    StaggeredItem(delayMillis = 260) {
+                        ProgressOverviewSection(days = progressDays)
+                    }
+                }
+                item {
+                    StaggeredItem(delayMillis = 320) {
+                        RecentActivitySection(activities = activityItems)
+                    }
+                }
+                if (state.isLoading) {
+                    item {
+                        StaggeredItem(delayMillis = 380) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun StaggeredItem(
+    delayMillis: Int,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    var visible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(delayMillis.toLong())
+        visible = true
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = 500)) +
+            slideInVertically(animationSpec = tween(durationMillis = 500)) { it / 6 }
+    ) {
+        Box(modifier = modifier) {
+            content()
         }
     }
 }
@@ -266,41 +457,233 @@ private fun HomeScreen(
 @Composable
 private fun HomeHeader(
     userName: String,
-    selectedDate: LocalDate,
-    onAddWorkout: () -> Unit,
-    onPickDate: () -> Unit
+    streakCount: Int,
+    notificationCount: Int,
+    showStreakInline: Boolean,
+    modifier: Modifier = Modifier
 ) {
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 4.dp)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        val isCompact = maxWidth < compactWidthThreshold
-        if (isCompact) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                UserGreetingRow(
-                    userName = userName,
-                    onAddWorkout = onAddWorkout,
-                    modifier = Modifier.fillMaxWidth()
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ProfileAvatar(userName = userName)
+            Column {
+                Text(
+                    "Welcome back,",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                DatePickerRow(
-                    selectedDate = selectedDate,
-                    onPickDate = onPickDate,
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Text(
+                    userName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
                 )
             }
-        } else {
-            Box(modifier = Modifier.fillMaxWidth()) {
-                UserGreetingRow(
-                    userName = userName,
-                    onAddWorkout = onAddWorkout,
-                    modifier = Modifier.align(Alignment.CenterStart)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (showStreakInline) {
+                StreakBadge(streakCount = streakCount)
+            }
+            NotificationBell(notificationCount = notificationCount)
+        }
+    }
+}
+
+@Composable
+private fun ProfileAvatar(
+    userName: String,
+    modifier: Modifier = Modifier
+) {
+    val initials = userName
+        .split(" ")
+        .filter { it.isNotBlank() }
+        .mapNotNull { it.firstOrNull()?.uppercase() }
+        .take(2)
+        .joinToString("")
+        .ifBlank { "A" }
+
+    Box(modifier = modifier.size(52.dp)) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .align(Alignment.Center)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary,
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                        )
+                    ),
+                    shape = CircleShape
                 )
-                DatePickerRow(
-                    selectedDate = selectedDate,
-                    onPickDate = onPickDate,
-                    modifier = Modifier.align(Alignment.Center)
+                .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                initials,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimary,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .align(Alignment.BottomEnd)
+                .background(MaterialTheme.colorScheme.primary, shape = CircleShape)
+                .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
+        )
+    }
+}
+
+@Composable
+private fun StreakBadge(streakCount: Int, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.LocalFireDepartment,
+                contentDescription = null,
+                tint = Orange500,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                streakCount.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun NotificationBell(notificationCount: Int, modifier: Modifier = Modifier) {
+    Box(modifier = modifier) {
+        IconButton(onClick = { }) {
+            Icon(
+                imageVector = Icons.Rounded.Notifications,
+                contentDescription = "Notifications"
+            )
+        }
+        if (notificationCount > 0) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .align(Alignment.TopEnd)
+                    .background(Color(0xFFEF4444), CircleShape)
+                    .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DailyStreakCard(streakCount: Int, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(Orange500.copy(alpha = 0.15f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.LocalFireDepartment,
+                        contentDescription = null,
+                        tint = Orange500,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Text("Daily Streak", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            }
+            Text("$streakCount Days", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun StatsSummaryRow(stats: List<StatSummary>, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        stats.forEach { summary ->
+            StatSummaryCard(summary = summary, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun StatSummaryCard(summary: StatSummary, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .background(summary.accent.copy(alpha = 0.15f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = summary.icon,
+                    contentDescription = null,
+                    tint = summary.accent,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    summary.value,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    summary.title,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(999.dp))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(summary.progress)
+                        .background(summary.accent, RoundedCornerShape(999.dp))
                 )
             }
         }
@@ -308,261 +691,417 @@ private fun HomeHeader(
 }
 
 @Composable
-private fun UserGreetingRow(
-    userName: String,
-    onAddWorkout: () -> Unit,
+private fun TodayWorkoutSection(
+    highlight: WorkoutHighlight,
+    onStartWorkout: () -> Unit,
+    ctaLabel: String,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onAddWorkout, modifier = Modifier.size(44.dp)) {
+            Text(
+                "Today's Workout",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "View Plan",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+        ) {
+            BoxWithConstraints {
+                val isCompact = maxWidth < compactWidthThreshold
+                if (isCompact) {
+                    Column {
+                        WorkoutImagePanel(highlight = highlight)
+                        WorkoutDetailPanel(highlight = highlight, onStartWorkout = onStartWorkout, ctaLabel = ctaLabel)
+                    }
+                } else {
+                    Row {
+                        WorkoutImagePanel(
+                            highlight = highlight,
+                            modifier = Modifier.weight(0.42f)
+                        )
+                        WorkoutDetailPanel(
+                            highlight = highlight,
+                            onStartWorkout = onStartWorkout,
+                            ctaLabel = ctaLabel,
+                            modifier = Modifier.weight(0.58f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutImagePanel(
+    highlight: WorkoutHighlight,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .heightIn(min = 160.dp)
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        MaterialTheme.colorScheme.surface
+                    )
+                )
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(12.dp)
+                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(999.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(999.dp))
+        ) {
+            Text(
+                highlight.badge,
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+        }
+        Icon(
+            imageVector = Icons.Rounded.FitnessCenter,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier
+                .size(56.dp)
+                .align(Alignment.Center)
+        )
+    }
+}
+
+@Composable
+private fun WorkoutDetailPanel(
+    highlight: WorkoutHighlight,
+    onStartWorkout: () -> Unit,
+    ctaLabel: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    highlight.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    highlight.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)),
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = "Create workout",
+                    imageVector = Icons.Rounded.FitnessCenter,
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
-        Column {
-            Text("Welcome back", style = MaterialTheme.typography.labelLarge)
-            Text(
-                userName,
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(imageVector = Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(highlight.duration, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.width(6.dp))
+            Icon(imageVector = Icons.Rounded.LocalFireDepartment, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(highlight.calories, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-}
-
-@Composable
-private fun DatePickerRow(
-    selectedDate: LocalDate,
-    onPickDate: () -> Unit,
-    modifier: Modifier = Modifier,
-    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp)
-) {
-    val dayLabel = if (selectedDate == LocalDate.now()) {
-        "Today"
-    } else {
-        selectedDate.format(shortDateFormatter)
-    }
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = horizontalArrangement
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                selectedDate.format(headerDateFormatter),
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+        Button(
+            onClick = onStartWorkout,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             )
-            Text(
-                dayLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.secondaryContainer
         ) {
-            IconButton(onClick = onPickDate) {
-                Icon(Icons.Rounded.CalendarMonth, contentDescription = "Pick a date")
-            }
+            Icon(
+                imageVector = Icons.Rounded.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(ctaLabel)
         }
     }
 }
 
 @Composable
-private fun QuickActionsRow(
-    isLoading: Boolean,
-    onRefresh: () -> Unit,
-    onCreateExercise: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(18.dp)
-    ) {
-        Column {
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp)
+private fun ProgressOverviewSection(days: List<ProgressDay>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Progress Overview",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
             ) {
-                val isCompact = maxWidth < compactWidthThreshold
-                if (isCompact) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Column {
-                            Text("Dial in your plan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "Log sets fast or prep new exercises.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            horizontalAlignment = Alignment.End
-                        ) {
-                            IconButton(onClick = onRefresh, enabled = !isLoading) {
-                                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh data")
-                            }
-                            FilledTonalButton(onClick = onCreateExercise, modifier = Modifier.fillMaxWidth()) {
-                                Icon(Icons.Rounded.FitnessCenter, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("New exercise")
-                            }
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Dial in your plan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "Log sets fast or prep new exercises.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onRefresh, enabled = !isLoading) {
-                                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh data")
-                            }
-                            FilledTonalButton(onClick = onCreateExercise) {
-                                Icon(Icons.Rounded.FitnessCenter, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("New exercise")
-                            }
-                        }
-                    }
-                }
-            }
-            if (isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyStateCard(onOpenCreateWorkout: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("No workouts logged for this day.", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Tap the plus to start a fresh workout and add exercises like a FitNotes flow.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            FilledTonalButton(onClick = onOpenCreateWorkout) {
-                Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Create workout")
-            }
-        }
-    }
-}
-
-@Composable
-private fun WorkoutSummaryCard(
-    workout: Workout,
-    onOpenWorkout: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
-                        workout.date ?: "Date pending",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
+                        "Last 7 Days",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (!workout.notes.isNullOrBlank()) {
-                        Text(
-                            workout.notes ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                TextButton(onClick = onOpenWorkout) {
-                    Text("View")
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
-            if (workout.items.isEmpty()) {
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+        ) {
+            ProgressBarChart(days = days, modifier = Modifier.padding(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun ProgressBarChart(days: List<ProgressDay>, modifier: Modifier = Modifier) {
+    val maxBarHeight = 120.dp
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        days.forEach { day ->
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (day.isActive) {
+                    Text(
+                        day.value,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+                Box(
+                    modifier = Modifier
+                        .height(maxBarHeight)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .height(maxBarHeight * day.progress)
+                            .width(22.dp)
+                            .background(
+                                if (day.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
+                            )
+                    )
+                }
                 Text(
-                    "No exercises yet. Tap view to start logging sets.",
+                    day.label.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (day.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentActivitySection(activities: List<ActivityItem>, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Recent Activity",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "See All",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            activities.forEach { activity ->
+                RecentActivityRow(activity = activity)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentActivityRow(activity: ActivityItem, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(activity.accent.copy(alpha = 0.15f), RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = activity.icon,
+                    contentDescription = null,
+                    tint = activity.accent
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    activity.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    activity.subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else {
-                workout.items.forEach { item ->
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            item.name ?: "Exercise",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
-                        )
-                        if (item.sets.isEmpty()) {
-                            Text(
-                                "Sets pending",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        } else {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                item.sets.take(3).forEach { set ->
-                                    SetChip(set = set)
-                                }
-                                if (item.sets.size > 3) {
-                                    AssistChip(
-                                        onClick = {},
-                                        enabled = false,
-                                        label = { Text("+${item.sets.size - 3}") },
-                                        colors = AssistChipDefaults.assistChipColors(
-                                            containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    activity.primary,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    activity.secondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeFloatingActionButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    androidx.compose.material3.FloatingActionButton(
+        onClick = onClick,
+        modifier = modifier,
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        shape = CircleShape
+    ) {
+        Icon(imageVector = Icons.Rounded.Add, contentDescription = "Log workout", modifier = Modifier.size(28.dp))
+    }
+}
+
+@Composable
+private fun BottomNavBar(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+        tonalElevation = 2.dp,
+        shadowElevation = 12.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            bottomNavItems.forEachIndexed { index, item ->
+                val isSelected = index == 0
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = item.icon,
+                        contentDescription = item.label,
+                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        item.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -874,7 +1413,7 @@ private fun AddWorkoutItemForm(
                 label = { Text("Exercise") },
                 trailingIcon = {
                     IconButton(onClick = { expanded = !expanded }) {
-                        Icon(Icons.Filled.ArrowDropDown, contentDescription = "Toggle exercise dropdown")
+                        Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Toggle exercise dropdown")
                     }
                 },
                 modifier = Modifier
