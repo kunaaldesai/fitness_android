@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -80,6 +81,7 @@ import java.time.format.DateTimeFormatter
 
 private val headerDateFormatter = DateTimeFormatter.ofPattern("EEEE, MMM d")
 private val shortDateFormatter = DateTimeFormatter.ofPattern("MMM d")
+private val compactWidthThreshold = 520.dp
 
 sealed interface FitnessDestination {
     data object Home : FitnessDestination
@@ -268,64 +270,110 @@ private fun HomeHeader(
     onAddWorkout: () -> Unit,
     onPickDate: () -> Unit
 ) {
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 4.dp)
     ) {
-        Row(
-            modifier = Modifier.align(Alignment.CenterStart),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-            ) {
-                IconButton(onClick = onAddWorkout, modifier = Modifier.size(44.dp)) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "Create workout",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
+        val isCompact = maxWidth < compactWidthThreshold
+        if (isCompact) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                UserGreetingRow(
+                    userName = userName,
+                    onAddWorkout = onAddWorkout,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                DatePickerRow(
+                    selectedDate = selectedDate,
+                    onPickDate = onPickDate,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                )
             }
-            Column {
-                Text("Welcome back", style = MaterialTheme.typography.labelLarge)
-                Text(
-                    userName,
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+        } else {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                UserGreetingRow(
+                    userName = userName,
+                    onAddWorkout = onAddWorkout,
+                    modifier = Modifier.align(Alignment.CenterStart)
+                )
+                DatePickerRow(
+                    selectedDate = selectedDate,
+                    onPickDate = onPickDate,
+                    modifier = Modifier.align(Alignment.Center)
                 )
             }
         }
-        Row(
-            modifier = Modifier.align(Alignment.Center),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+    }
+}
+
+@Composable
+private fun UserGreetingRow(
+    userName: String,
+    onAddWorkout: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
         ) {
-            val dayLabel = if (selectedDate == LocalDate.now()) {
-                "Today"
-            } else {
-                selectedDate.format(shortDateFormatter)
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    selectedDate.format(headerDateFormatter),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                )
-                Text(
-                    dayLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            IconButton(onClick = onAddWorkout, modifier = Modifier.size(44.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = "Create workout",
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                IconButton(onClick = onPickDate) {
-                    Icon(Icons.Rounded.CalendarMonth, contentDescription = "Pick a date")
-                }
+        }
+        Column {
+            Text("Welcome back", style = MaterialTheme.typography.labelLarge)
+            Text(
+                userName,
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DatePickerRow(
+    selectedDate: LocalDate,
+    onPickDate: () -> Unit,
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp)
+) {
+    val dayLabel = if (selectedDate == LocalDate.now()) {
+        "Today"
+    } else {
+        selectedDate.format(shortDateFormatter)
+    }
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = horizontalArrangement
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                selectedDate.format(headerDateFormatter),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                dayLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.secondaryContainer
+        ) {
+            IconButton(onClick = onPickDate) {
+                Icon(Icons.Rounded.CalendarMonth, contentDescription = "Pick a date")
             }
         }
     }
@@ -342,34 +390,68 @@ private fun QuickActionsRow(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(18.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text("Dial in your plan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Log sets fast or prep new exercises.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onRefresh, enabled = !isLoading) {
-                    Icon(Icons.Rounded.Refresh, contentDescription = "Refresh data")
+        Column {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp)
+            ) {
+                val isCompact = maxWidth < compactWidthThreshold
+                if (isCompact) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column {
+                            Text("Dial in your plan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Log sets fast or prep new exercises.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            IconButton(onClick = onRefresh, enabled = !isLoading) {
+                                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh data")
+                            }
+                            FilledTonalButton(onClick = onCreateExercise, modifier = Modifier.fillMaxWidth()) {
+                                Icon(Icons.Rounded.FitnessCenter, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("New exercise")
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Dial in your plan", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Log sets fast or prep new exercises.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onRefresh, enabled = !isLoading) {
+                                Icon(Icons.Rounded.Refresh, contentDescription = "Refresh data")
+                            }
+                            FilledTonalButton(onClick = onCreateExercise) {
+                                Icon(Icons.Rounded.FitnessCenter, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("New exercise")
+                            }
+                        }
+                    }
                 }
-                FilledTonalButton(onClick = onCreateExercise) {
-                    Icon(Icons.Rounded.FitnessCenter, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("New exercise")
-                }
             }
-        }
-        if (isLoading) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            if (isLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
         }
     }
 }
@@ -980,91 +1062,181 @@ private fun AddSetForm(
     var isPr by remember(itemId) { mutableStateOf(false) }
     var repsError by remember(itemId) { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Add set", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = repsText,
-                onValueChange = {
-                    repsText = it
-                    repsError = false
-                },
-                modifier = Modifier.weight(1f),
-                label = { Text("Reps") },
-                singleLine = true,
-                isError = repsError,
-                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
-            )
-            OutlinedTextField(
-                value = weightText,
-                onValueChange = { weightText = it },
-                modifier = Modifier.weight(1f),
-                label = { Text("Weight") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                value = rirText,
-                onValueChange = { rirText = it },
-                modifier = Modifier.weight(1f),
-                label = { Text("RIR") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
-            )
-            OutlinedTextField(
-                value = rpeText,
-                onValueChange = { rpeText = it },
-                modifier = Modifier.weight(1f),
-                label = { Text("RPE") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
-            )
-        }
-        OutlinedTextField(
-            value = notes,
-            onValueChange = { notes = it },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Notes (optional)") },
-            minLines = 2
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.Switch(checked = isPr, onCheckedChange = { isPr = it })
-                Text("PR")
-            }
-            FilledTonalButton(
-                onClick = {
-                    val reps = repsText.toIntOrNull()
-                    if (reps == null) {
-                        repsError = true
-                        return@FilledTonalButton
-                    }
-                    onAddSet(
-                        workoutId,
-                        itemId,
-                        reps,
-                        weightText.toDoubleOrNull(),
-                        rirText.toDoubleOrNull(),
-                        rpeText.toDoubleOrNull(),
-                        notes.ifBlank { null },
-                        isPr
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val isCompact = maxWidth < compactWidthThreshold
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Add set", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            if (isCompact) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = repsText,
+                        onValueChange = {
+                            repsText = it
+                            repsError = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Reps") },
+                        singleLine = true,
+                        isError = repsError,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
                     )
-                    repsText = ""
-                    weightText = ""
-                    rirText = ""
-                    rpeText = ""
-                    notes = ""
-                    isPr = false
-                },
-                enabled = !isActionRunning
-            ) {
-                Text("Save set")
+                    OutlinedTextField(
+                        value = weightText,
+                        onValueChange = { weightText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Weight") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    )
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = repsText,
+                        onValueChange = {
+                            repsText = it
+                            repsError = false
+                        },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Reps") },
+                        singleLine = true,
+                        isError = repsError,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = weightText,
+                        onValueChange = { weightText = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Weight") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+            if (isCompact) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = rirText,
+                        onValueChange = { rirText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("RIR") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = rpeText,
+                        onValueChange = { rpeText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("RPE") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    )
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = rirText,
+                        onValueChange = { rirText = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("RIR") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = rpeText,
+                        onValueChange = { rpeText = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("RPE") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Notes (optional)") },
+                minLines = 2
+            )
+            if (isCompact) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.Switch(checked = isPr, onCheckedChange = { isPr = it })
+                        Text("PR")
+                    }
+                    FilledTonalButton(
+                        onClick = {
+                            val reps = repsText.toIntOrNull()
+                            if (reps == null) {
+                                repsError = true
+                                return@FilledTonalButton
+                            }
+                            onAddSet(
+                                workoutId,
+                                itemId,
+                                reps,
+                                weightText.toDoubleOrNull(),
+                                rirText.toDoubleOrNull(),
+                                rpeText.toDoubleOrNull(),
+                                notes.ifBlank { null },
+                                isPr
+                            )
+                            repsText = ""
+                            weightText = ""
+                            rirText = ""
+                            rpeText = ""
+                            notes = ""
+                            isPr = false
+                        },
+                        enabled = !isActionRunning,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save set")
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.Switch(checked = isPr, onCheckedChange = { isPr = it })
+                        Text("PR")
+                    }
+                    FilledTonalButton(
+                        onClick = {
+                            val reps = repsText.toIntOrNull()
+                            if (reps == null) {
+                                repsError = true
+                                return@FilledTonalButton
+                            }
+                            onAddSet(
+                                workoutId,
+                                itemId,
+                                reps,
+                                weightText.toDoubleOrNull(),
+                                rirText.toDoubleOrNull(),
+                                rpeText.toDoubleOrNull(),
+                                notes.ifBlank { null },
+                                isPr
+                            )
+                            repsText = ""
+                            weightText = ""
+                            rirText = ""
+                            rpeText = ""
+                            notes = ""
+                            isPr = false
+                        },
+                        enabled = !isActionRunning
+                    ) {
+                        Text("Save set")
+                    }
+                }
             }
         }
     }
