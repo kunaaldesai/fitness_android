@@ -31,7 +31,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.pager.HorizontalPager
@@ -42,6 +44,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.Explore
@@ -49,10 +52,12 @@ import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Pool
+import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.AssistChip
@@ -73,6 +78,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -83,12 +89,18 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -98,6 +110,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitnesstracker.data.remote.Exercise
@@ -1365,187 +1378,814 @@ private fun CreateWorkoutPlanScreen(
     var muscleGroup by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     var setsText by rememberSaveable { mutableStateOf("") }
-    var exercisesText by rememberSaveable { mutableStateOf("") }
-    var equipmentText by rememberSaveable { mutableStateOf("") }
     var nameError by rememberSaveable { mutableStateOf(false) }
+
+    val accent = Color(0xFF00E676)
+    val accentDark = Color(0xFF00C853)
+    val background = Color(0xFF051A10)
+    val glass = Color(0x73142319)
+    val glassBorder = Color(0x14FFFFFF)
+    val textDim = Color(0xFFA0B4AB)
+    val cardShape = RoundedCornerShape(28.dp)
+    val fieldShape = RoundedCornerShape(20.dp)
+    val typeOptions = listOf("Strength", "Cardio")
+    val focusOptions = listOf("Upper Body", "Lower Body", "Chest", "Back", "Legs", "Biceps", "Triceps", "Shoulders", "Abs", "Cardio")
+    val exercises = remember { mutableStateListOf<String>() }
+    val equipment = remember { mutableStateListOf<String>() }
+    var showExerciseInput by rememberSaveable { mutableStateOf(false) }
+    var showEquipmentInput by rememberSaveable { mutableStateOf(false) }
+    var newExerciseText by rememberSaveable { mutableStateOf("") }
+    var newEquipmentText by rememberSaveable { mutableStateOf("") }
+    val exerciseFocusRequester = remember { FocusRequester() }
+    val equipmentFocusRequester = remember { FocusRequester() }
+    val fieldTextStyle = MaterialTheme.typography.bodyLarge.copy(color = Color.White)
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color.White,
+        unfocusedTextColor = Color.White,
+        focusedContainerColor = Color.White.copy(alpha = 0.05f),
+        unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
+        focusedBorderColor = accent.copy(alpha = 0.5f),
+        unfocusedBorderColor = Color.White.copy(alpha = 0.1f),
+        cursorColor = accent,
+        focusedPlaceholderColor = Color.White.copy(alpha = 0.2f),
+        unfocusedPlaceholderColor = Color.White.copy(alpha = 0.2f),
+        errorBorderColor = MaterialTheme.colorScheme.error,
+        errorContainerColor = Color.White.copy(alpha = 0.05f)
+    )
+
+    LaunchedEffect(showExerciseInput) {
+        if (showExerciseInput) {
+            exerciseFocusRequester.requestFocus()
+        }
+    }
+    LaunchedEffect(showEquipmentInput) {
+        if (showEquipmentInput) {
+            equipmentFocusRequester.requestFocus()
+        }
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                    )
-                )
-            )
+            .background(background)
     ) {
-        LazyColumn(
+        val density = LocalDensity.current
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(accent.copy(alpha = 0.12f), Color.Transparent),
+                        center = Offset.Zero,
+                        radius = with(density) { 420.dp.toPx() }
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(accent.copy(alpha = 0.08f), Color.Transparent),
+                        center = Offset(
+                            with(density) { 320.dp.toPx() },
+                            with(density) { 720.dp.toPx() }
+                        ),
+                        radius = with(density) { 520.dp.toPx() }
+                    )
+                )
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 140.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            item {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                    Column {
-                        Text("Create workout plan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Design a new plan for your library.", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-            item {
-                Card(
+            stickyHeader {
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp)
+                    color = background.copy(alpha = 0.8f),
+                    shadowElevation = 12.dp
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(horizontal = 20.dp, vertical = 16.dp)
                     ) {
-                        Text("Basics", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = {
-                                name = it
-                                if (nameError) nameError = it.isBlank()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Workout name") },
-                            singleLine = true,
-                            isError = nameError
-                        )
-                        OutlinedTextField(
-                            value = type,
-                            onValueChange = { type = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Type (Strength, Cardio, etc.)") },
-                            singleLine = true
-                        )
-                        OutlinedTextField(
-                            value = muscleGroup,
-                            onValueChange = { muscleGroup = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Muscle group") },
-                            singleLine = true
-                        )
-                    }
-                }
-            }
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(
-                            value = description,
-                            onValueChange = { description = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Description") },
-                            minLines = 3
-                        )
-                    }
-                }
-            }
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Totals", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(
-                            value = setsText,
-                            onValueChange = { setsText = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Sets") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true
-                        )
-                    }
-                }
-            }
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text("Programming", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(
-                            value = exercisesText,
-                            onValueChange = { exercisesText = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Exercises (comma-separated)") },
-                            minLines = 3
-                        )
-                        OutlinedTextField(
-                            value = equipmentText,
-                            onValueChange = { equipmentText = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Equipment (comma-separated)") },
-                            minLines = 2
-                        )
-                        FilledTonalButton(
-                            onClick = {
-                                nameError = name.isBlank()
-                                if (nameError) return@FilledTonalButton
-                                val exercises = parseCommaSeparatedList(exercisesText)
-                                val equipment = parseCommaSeparatedList(equipmentText)
-                                val numberOfExercises = exercises.size.takeIf { it > 0 }
-                                val sets = setsText.toIntOrNull()
-                                onCreateWorkoutPlan(
-                                    name,
-                                    description.ifBlank { null },
-                                    exercises,
-                                    equipment,
-                                    muscleGroup.ifBlank { null },
-                                    numberOfExercises,
-                                    sets,
-                                    type.ifBlank { null }
-                                )
-                                name = ""
-                                type = ""
-                                muscleGroup = ""
-                                description = ""
-                                setsText = ""
-                                exercisesText = ""
-                                equipmentText = ""
-                            },
-                            enabled = !isSubmitting,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(if (isSubmitting) "Creating..." else "Create workout plan")
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 32.dp, height = 6.dp)
+                                        .clip(CircleShape)
+                                        .background(accent)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 10.dp, height = 6.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(width = 10.dp, height = 6.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.2f))
+                                )
+                            }
+                            IconButton(onClick = {}) {
+                                Icon(Icons.Rounded.MoreVert, contentDescription = "More options", tint = Color.White.copy(alpha = 0.7f))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "New Plan",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Design your ultimate routine.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textDim
+                        )
+                    }
+                }
+            }
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    shape = cardShape,
+                    colors = CardDefaults.cardColors(containerColor = glass),
+                    border = BorderStroke(1.dp, glassBorder)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.FitnessCenter,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(72.dp)
+                                .alpha(0.12f)
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(accent, CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Basics".uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp,
+                                    color = accent
+                                )
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "Workout Name".uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.5.sp,
+                                    color = textDim
+                                )
+                                OutlinedTextField(
+                                    value = name,
+                                    onValueChange = {
+                                        name = it
+                                        if (nameError) nameError = it.isBlank()
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("e.g. Chest Day", color = Color.White.copy(alpha = 0.2f)) },
+                                    singleLine = true,
+                                    isError = nameError,
+                                    shape = fieldShape,
+                                    textStyle = fieldTextStyle,
+                                    colors = textFieldColors
+                                )
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "Type".uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.5.sp,
+                                    color = textDim
+                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(18.dp))
+                                        .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(18.dp))
+                                        .padding(4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    typeOptions.forEach { option ->
+                                        val isSelected = type == option
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(if (isSelected) accent else Color.Transparent)
+                                                .clickable { type = option }
+                                                .padding(vertical = 10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = option,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                                color = if (isSelected) background else Color.White.copy(alpha = 0.65f)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "Focus Area".uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.5.sp,
+                                    color = textDim
+                                )
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(focusOptions) { option ->
+                                        val isSelected = muscleGroup == option
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(
+                                                    if (isSelected) accent.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f)
+                                                )
+                                                .border(
+                                                    1.dp,
+                                                    if (isSelected) accent.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.12f),
+                                                    RoundedCornerShape(16.dp)
+                                                )
+                                                .clickable {
+                                                    muscleGroup = if (isSelected) "" else option
+                                                }
+                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = option,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                                                color = if (isSelected) accent else Color.White.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(140.dp),
+                        shape = cardShape,
+                        colors = CardDefaults.cardColors(containerColor = glass),
+                        border = BorderStroke(1.dp, glassBorder)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(18.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Repeat,
+                                contentDescription = null,
+                                tint = accent.copy(alpha = 0.7f),
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(22.dp)
+                            )
+                            Column(
+                                modifier = Modifier.align(Alignment.BottomStart),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "Total Sets".uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.5.sp,
+                                    color = textDim
+                                )
+                                BasicTextField(
+                                    value = setsText,
+                                    onValueChange = { value ->
+                                        setsText = value.filter { it.isDigit() }
+                                    },
+                                    textStyle = MaterialTheme.typography.headlineMedium.copy(color = Color.White),
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    decorationBox = { innerTextField ->
+                                        if (setsText.isBlank()) {
+                                            Text(
+                                                text = "0",
+                                                style = MaterialTheme.typography.headlineMedium,
+                                                color = Color.White.copy(alpha = 0.2f)
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(140.dp)
+                            .clip(cardShape)
+                            .border(
+                                BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+                                cardShape
+                            )
+                            .clickable { }
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = "Add goal",
+                                tint = Color.White.copy(alpha = 0.4f),
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Add Goal",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = textDim
+                            )
+                        }
+                    }
+                }
+            }
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    shape = cardShape,
+                    colors = CardDefaults.cardColors(containerColor = glass),
+                    border = BorderStroke(1.dp, glassBorder)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(accent.copy(alpha = 0.7f), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Programming".uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 2.sp,
+                                color = accent
+                            )
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Exercises".uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.5.sp,
+                                    color = textDim
+                                )
+                                if (!showExerciseInput) {
+                                    Row(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .clickable { showExerciseInput = true }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Add,
+                                                contentDescription = "Add exercise",
+                                                tint = Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Add more",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = Color.White.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                } else {
+                                    TextButton(onClick = {
+                                        showExerciseInput = false
+                                        newExerciseText = ""
+                                    }) {
+                                        Text("Done", color = accent)
+                                    }
+                                }
+                            }
+                            if (exercises.isEmpty()) {
+                                Text(
+                                    text = "No exercises yet. Tap Add more to include some.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.45f)
+                                )
+                            }
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(exercises) { exercise ->
+                                    Row(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(accent.copy(alpha = 0.2f))
+                                            .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = exercise,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = accent
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clip(CircleShape)
+                                                .clickable {
+                                                    exercises.remove(exercise)
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = "Remove $exercise",
+                                                tint = Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            if (showExerciseInput) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = newExerciseText,
+                                        onValueChange = { newExerciseText = it },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .focusRequester(exerciseFocusRequester),
+                                        placeholder = { Text("Add an exercise", color = Color.White.copy(alpha = 0.2f)) },
+                                        singleLine = true,
+                                        shape = fieldShape,
+                                        textStyle = fieldTextStyle,
+                                        colors = textFieldColors
+                                    )
+                                    Button(
+                                        onClick = {
+                                            val trimmed = newExerciseText.trim()
+                                            if (trimmed.isNotEmpty() && trimmed !in exercises) {
+                                                exercises.add(trimmed)
+                                            }
+                                            newExerciseText = ""
+                                        },
+                                        enabled = newExerciseText.isNotBlank(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = accent,
+                                            contentColor = background
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                                    ) {
+                                        Text("Add", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Equipment Needed".uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.5.sp,
+                                    color = textDim
+                                )
+                                if (!showEquipmentInput) {
+                                    Row(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .clickable { showEquipmentInput = true }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
+                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Add,
+                                                contentDescription = "Add equipment",
+                                                tint = Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Add more",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = Color.White.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                } else {
+                                    TextButton(onClick = {
+                                        showEquipmentInput = false
+                                        newEquipmentText = ""
+                                    }) {
+                                        Text("Done", color = accent)
+                                    }
+                                }
+                            }
+                            if (equipment.isEmpty()) {
+                                Text(
+                                    text = "No equipment yet. Add items if needed.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White.copy(alpha = 0.45f)
+                                )
+                            }
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(equipment) { item ->
+                                    Row(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(accent.copy(alpha = 0.2f))
+                                            .border(1.dp, accent.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = item,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = accent
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clip(CircleShape)
+                                                .clickable { equipment.remove(item) },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Close,
+                                                contentDescription = "Remove $item",
+                                                tint = Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            if (showEquipmentInput) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = newEquipmentText,
+                                        onValueChange = { newEquipmentText = it },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .focusRequester(equipmentFocusRequester),
+                                        placeholder = { Text("Add equipment", color = Color.White.copy(alpha = 0.2f)) },
+                                        singleLine = true,
+                                        shape = fieldShape,
+                                        textStyle = fieldTextStyle,
+                                        colors = textFieldColors
+                                    )
+                                    Button(
+                                        onClick = {
+                                            val trimmed = newEquipmentText.trim()
+                                            if (trimmed.isNotEmpty() && trimmed !in equipment) {
+                                                equipment.add(trimmed)
+                                            }
+                                            newEquipmentText = ""
+                                        },
+                                        enabled = newEquipmentText.isNotBlank(),
+                                        shape = RoundedCornerShape(16.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = accent,
+                                            contentColor = background
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                                    ) {
+                                        Text("Add", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    shape = cardShape,
+                    colors = CardDefaults.cardColors(containerColor = glass),
+                    border = BorderStroke(1.dp, glassBorder)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(accent.copy(alpha = 0.7f), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Description".uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 2.sp,
+                                color = accent
+                            )
+                        }
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("What is the goal of this workout?", color = Color.White.copy(alpha = 0.2f)) },
+                            minLines = 3,
+                            shape = fieldShape,
+                            textStyle = fieldTextStyle,
+                            colors = textFieldColors
+                        )
+                    }
+                }
+            }
+        }
+
+        val buttonEnabled = !isSubmitting
+        val buttonColors = if (buttonEnabled) {
+            listOf(accent, accentDark)
+        } else {
+            listOf(accent.copy(alpha = 0.4f), accentDark.copy(alpha = 0.4f))
+        }
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, background.copy(alpha = 0.95f), background)
+                    )
+                )
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(58.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Brush.linearGradient(buttonColors))
+                    .border(1.dp, accent.copy(alpha = 0.2f), RoundedCornerShape(28.dp))
+                    .clickable(enabled = buttonEnabled) {
+                        nameError = name.isBlank()
+                        if (nameError) return@clickable
+                        val numberOfExercises = exercises.size.takeIf { it > 0 }
+                        val sets = setsText.toIntOrNull()
+                        onCreateWorkoutPlan(
+                            name,
+                            description.ifBlank { null },
+                            exercises,
+                            equipment,
+                            muscleGroup.ifBlank { null },
+                            numberOfExercises,
+                            sets,
+                            type.ifBlank { null }
+                        )
+                        name = ""
+                        type = ""
+                        muscleGroup = ""
+                        description = ""
+                        setsText = ""
+                        exercises.clear()
+                        equipment.clear()
+                        showExerciseInput = false
+                        showEquipmentInput = false
+                        newExerciseText = ""
+                        newEquipmentText = ""
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    if (isSubmitting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = background,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = background
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = if (isSubmitting) "Creating..." else "Create Workout Plan",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = background
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(top = 82.dp)
+                    .size(width = 120.dp, height = 4.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.1f))
+            )
         }
     }
 }
@@ -2185,6 +2825,3 @@ private fun LocalDate.toEpochMillis(): Long =
 
 private fun Long.toLocalDate(): LocalDate =
     Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).toLocalDate()
-
-private fun parseCommaSeparatedList(value: String): List<String> =
-    value.split(",").map { it.trim() }.filter { it.isNotBlank() }
