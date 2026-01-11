@@ -32,6 +32,11 @@ interface WorkoutsApi {
         @Body body: CreateWorkoutRequest
     ): IdResponse
 
+    @POST("createWorkout")
+    suspend fun createWorkoutPlan(
+        @Body body: CreateWorkoutPlanRequest
+    ): IdResponse
+
     @POST("users/{userId}/exercises")
     suspend fun createExercise(
         @Path("userId") userId: String,

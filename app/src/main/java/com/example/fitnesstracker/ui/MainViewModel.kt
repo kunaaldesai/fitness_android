@@ -140,6 +140,49 @@ class MainViewModel(
         }
     }
 
+    fun createWorkoutPlan(
+        name: String,
+        description: String?,
+        exercises: List<String>,
+        equipment: List<String>,
+        muscleGroup: String?,
+        numberOfExercises: Int?,
+        sets: Int?,
+        type: String?
+    ) {
+        val trimmedName = name.trim()
+        if (trimmedName.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "Workout name is required.") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
+            val result = repository.createWorkoutPlan(
+                name = trimmedName,
+                description = description?.takeUnless { it.isNullOrBlank() },
+                exercises = exercises,
+                equipment = equipment,
+                muscleGroup = muscleGroup?.takeUnless { it.isNullOrBlank() },
+                numberOfExercises = numberOfExercises,
+                sets = sets,
+                type = type?.takeUnless { it.isNullOrBlank() }
+            )
+            result.fold(
+                onSuccess = {
+                    refreshWorkoutPlans(infoMessage = "Workout plan created")
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isActionRunning = false,
+                            errorMessage = error.userFacing("Could not create workout plan")
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     fun createExercise(name: String, notes: String?) {
         val trimmedName = name.trim()
         if (trimmedName.isEmpty()) {
@@ -239,6 +282,18 @@ class MainViewModel(
             )
         }
         selectWorkoutId?.let { selectWorkout(it, force = true, infoMessage = infoMessage) }
+    }
+
+    private suspend fun refreshWorkoutPlans(infoMessage: String? = null) {
+        val workoutPlansResult = repository.fetchWorkoutPlans()
+        _uiState.update { state ->
+            state.copy(
+                workoutPlans = workoutPlansResult.getOrDefault(state.workoutPlans),
+                isActionRunning = false,
+                errorMessage = workoutPlansResult.exceptionOrNull()?.message,
+                infoMessage = infoMessage ?: state.infoMessage
+            )
+        }
     }
 
     private fun Throwable.userFacing(fallback: String): String =

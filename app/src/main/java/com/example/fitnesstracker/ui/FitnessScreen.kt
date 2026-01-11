@@ -5,6 +5,9 @@ package com.example.fitnesstracker.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -39,6 +42,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.FitnessCenter
@@ -107,6 +111,11 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 private val compactWidthThreshold = 520.dp
 
@@ -133,12 +142,9 @@ private fun WorkoutPlan.toHighlight(): WorkoutPlanHighlight {
     val typeLabel = type?.trim().takeUnless { it.isNullOrBlank() }?.toDisplayLabel()
     val muscleLabel = muscleGroup?.trim().takeUnless { it.isNullOrBlank() }?.toDisplayLabel()
     val subtitleText = listOfNotNull(typeLabel, muscleLabel).joinToString(" - ").ifBlank { "Workout Plan" }
-    val exercisesCountValue = numberOfExercises ?: exercises.size.takeIf { it > 0 } ?: 0
+    val exerciseList = exercises.toStringList()
+    val exercisesCountValue = numberOfExercises ?: exerciseList.size.takeIf { it > 0 } ?: 0
     val setsCountValue = sets ?: 0
-    val exerciseList = exercises.entries
-        .sortedBy { it.key }
-        .map { it.value.trim() }
-        .filter { it.isNotBlank() }
     val exercisePreview = exerciseList.take(3).joinToString(", ").takeIf { it.isNotBlank() }
         ?.let { "Exercises: $it" }
 
@@ -151,6 +157,16 @@ private fun WorkoutPlan.toHighlight(): WorkoutPlanHighlight {
         description = description?.trim().takeUnless { it.isNullOrBlank() },
         exercisePreview = exercisePreview
     )
+}
+
+private fun JsonElement?.toStringList(): List<String> {
+    return when (this) {
+        is JsonArray -> mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+        is JsonObject -> entries.sortedBy { it.key }
+            .mapNotNull { (it.value as? JsonPrimitive)?.contentOrNull }
+        is JsonPrimitive -> contentOrNull?.let { listOf(it) }.orEmpty()
+        else -> emptyList()
+    }.map { it.trim() }.filter { it.isNotBlank() }
 }
 
 private fun String.toDisplayLabel(): String =
@@ -187,6 +203,7 @@ private val bottomNavItems = listOf(
 sealed interface FitnessDestination {
     data object Home : FitnessDestination
     data object CreateWorkout : FitnessDestination
+    data object CreateWorkoutPlan : FitnessDestination
     data class WorkoutDetail(val id: String) : FitnessDestination
     data object CreateExercise : FitnessDestination
 }
@@ -223,7 +240,7 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (isHome) {
-                HomeFloatingActionButton(onClick = { destination = FitnessDestination.CreateWorkout })
+                HomeFloatingActionButton(onCreateWorkoutPlan = { destination = FitnessDestination.CreateWorkoutPlan })
             }
         },
         bottomBar = {
@@ -246,6 +263,13 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
                 onCreateWorkout = { date, notes, timezone ->
                     viewModel.createWorkout(date, notes, timezone)
                 },
+                modifier = Modifier.padding(padding)
+            )
+
+            FitnessDestination.CreateWorkoutPlan -> CreateWorkoutPlanScreen(
+                onBack = { destination = FitnessDestination.Home },
+                isSubmitting = state.isActionRunning,
+                onCreateWorkoutPlan = viewModel::createWorkoutPlan,
                 modifier = Modifier.padding(padding)
             )
 
@@ -1110,15 +1134,45 @@ private fun RecentActivityRow(activity: ActivityItem, modifier: Modifier = Modif
 }
 
 @Composable
-private fun HomeFloatingActionButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    androidx.compose.material3.FloatingActionButton(
-        onClick = onClick,
+private fun HomeFloatingActionButton(
+    onCreateWorkoutPlan: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(
         modifier = modifier,
-        containerColor = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        shape = CircleShape
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(imageVector = Icons.Rounded.Add, contentDescription = "Log workout", modifier = Modifier.size(28.dp))
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(animationSpec = tween(180)) + scaleIn(animationSpec = tween(180)),
+            exit = fadeOut(animationSpec = tween(160)) + scaleOut(animationSpec = tween(160))
+        ) {
+            androidx.compose.material3.ExtendedFloatingActionButton(
+                onClick = {
+                    expanded = false
+                    onCreateWorkoutPlan()
+                },
+                icon = { Icon(Icons.Rounded.FitnessCenter, contentDescription = null) },
+                text = { Text("Create workout plan") },
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
+        androidx.compose.material3.FloatingActionButton(
+            onClick = { expanded = !expanded },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = CircleShape
+        ) {
+            Icon(
+                imageVector = if (expanded) Icons.Rounded.Close else Icons.Rounded.Add,
+                contentDescription = "Toggle create menu",
+                modifier = Modifier.size(28.dp)
+            )
+        }
     }
 }
 
@@ -1285,6 +1339,212 @@ private fun CreateWorkoutScreen(
                 dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
             ) {
                 DatePicker(state = datePickerState)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreateWorkoutPlanScreen(
+    onBack: () -> Unit,
+    isSubmitting: Boolean,
+    onCreateWorkoutPlan: (
+        name: String,
+        description: String?,
+        exercises: List<String>,
+        equipment: List<String>,
+        muscleGroup: String?,
+        numberOfExercises: Int?,
+        sets: Int?,
+        type: String?
+    ) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var name by rememberSaveable { mutableStateOf("") }
+    var type by rememberSaveable { mutableStateOf("") }
+    var muscleGroup by rememberSaveable { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var setsText by rememberSaveable { mutableStateOf("") }
+    var exercisesText by rememberSaveable { mutableStateOf("") }
+    var equipmentText by rememberSaveable { mutableStateOf("") }
+    var nameError by rememberSaveable { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    )
+                )
+            )
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+                    }
+                    Column {
+                        Text("Create workout plan", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Design a new plan for your library.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Basics", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = {
+                                name = it
+                                if (nameError) nameError = it.isBlank()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Workout name") },
+                            singleLine = true,
+                            isError = nameError
+                        )
+                        OutlinedTextField(
+                            value = type,
+                            onValueChange = { type = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Type (Strength, Cardio, etc.)") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = muscleGroup,
+                            onValueChange = { muscleGroup = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Muscle group") },
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Description") },
+                            minLines = 3
+                        )
+                    }
+                }
+            }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Totals", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = setsText,
+                            onValueChange = { setsText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Sets") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true
+                        )
+                    }
+                }
+            }
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Programming", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(
+                            value = exercisesText,
+                            onValueChange = { exercisesText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Exercises (comma-separated)") },
+                            minLines = 3
+                        )
+                        OutlinedTextField(
+                            value = equipmentText,
+                            onValueChange = { equipmentText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Equipment (comma-separated)") },
+                            minLines = 2
+                        )
+                        FilledTonalButton(
+                            onClick = {
+                                nameError = name.isBlank()
+                                if (nameError) return@FilledTonalButton
+                                val exercises = parseCommaSeparatedList(exercisesText)
+                                val equipment = parseCommaSeparatedList(equipmentText)
+                                val numberOfExercises = exercises.size.takeIf { it > 0 }
+                                val sets = setsText.toIntOrNull()
+                                onCreateWorkoutPlan(
+                                    name,
+                                    description.ifBlank { null },
+                                    exercises,
+                                    equipment,
+                                    muscleGroup.ifBlank { null },
+                                    numberOfExercises,
+                                    sets,
+                                    type.ifBlank { null }
+                                )
+                                name = ""
+                                type = ""
+                                muscleGroup = ""
+                                description = ""
+                                setsText = ""
+                                exercisesText = ""
+                                equipmentText = ""
+                            },
+                            enabled = !isSubmitting,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isSubmitting) "Creating..." else "Create workout plan")
+                        }
+                    }
+                }
             }
         }
     }
@@ -1925,3 +2185,6 @@ private fun LocalDate.toEpochMillis(): Long =
 
 private fun Long.toLocalDate(): LocalDate =
     Instant.ofEpochMilli(this).atZone(ZoneId.systemDefault()).toLocalDate()
+
+private fun parseCommaSeparatedList(value: String): List<String> =
+    value.split(",").map { it.trim() }.filter { it.isNotBlank() }

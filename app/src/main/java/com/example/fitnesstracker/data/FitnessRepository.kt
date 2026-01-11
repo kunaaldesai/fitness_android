@@ -4,6 +4,7 @@ import com.example.fitnesstracker.AppConfig
 import com.example.fitnesstracker.data.remote.CreateExerciseRequest
 import com.example.fitnesstracker.data.remote.CreateSetRequest
 import com.example.fitnesstracker.data.remote.CreateWorkoutItemRequest
+import com.example.fitnesstracker.data.remote.CreateWorkoutPlanRequest
 import com.example.fitnesstracker.data.remote.CreateWorkoutRequest
 import com.example.fitnesstracker.data.remote.Exercise
 import com.example.fitnesstracker.data.remote.IdResponse
@@ -51,6 +52,31 @@ class FitnessRepository(
                 timezone = timezone
             )
         ).requireId("createWorkout")
+    }
+
+    suspend fun createWorkoutPlan(
+        name: String,
+        description: String?,
+        exercises: List<String>,
+        equipment: List<String>,
+        muscleGroup: String?,
+        numberOfExercises: Int?,
+        sets: Int?,
+        type: String?
+    ): Result<String> = runCatching {
+        workoutsApi.createWorkoutPlan(
+            CreateWorkoutPlanRequest(
+                name = name,
+                description = description,
+                exercises = exercises,
+                equipment = equipment,
+                muscleGroup = muscleGroup,
+                numberOfExercises = numberOfExercises,
+                sets = sets,
+                type = type,
+                default = false
+            )
+        ).requireId("createWorkoutPlan")
     }
 
     suspend fun createExercise(name: String, notes: String? = null): Result<String> =

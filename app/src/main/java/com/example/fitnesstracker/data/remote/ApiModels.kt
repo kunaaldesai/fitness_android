@@ -76,7 +76,21 @@ data class WorkoutPlan(
     @SerialName("muscle_group") val muscleGroup: String? = null,
     @SerialName("number_of_exercises") val numberOfExercises: Int? = null,
     val description: String? = null,
-    val exercises: Map<String, String> = emptyMap()
+    val exercises: JsonElement? = null,
+    val equipment: JsonElement? = null
+)
+
+@Serializable
+data class CreateWorkoutPlanRequest(
+    val description: String? = null,
+    val exercises: List<String> = emptyList(),
+    val equipment: List<String> = emptyList(),
+    @SerialName("muscle_group") val muscleGroup: String? = null,
+    val name: String? = null,
+    @SerialName("number_of_exercises") val numberOfExercises: Int? = null,
+    val sets: Int? = null,
+    val type: String? = null,
+    val default: Boolean = false
 )
 
 @Serializable
