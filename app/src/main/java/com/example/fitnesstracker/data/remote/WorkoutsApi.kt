@@ -15,6 +15,9 @@ interface WorkoutsApi {
         @Query("endDate") endDate: String? = null
     ): List<Workout>
 
+    @GET("getAllWorkouts")
+    suspend fun getAllWorkouts(): List<WorkoutPlan>
+
     @GET("users/{userId}/workouts/{workoutId}")
     suspend fun getWorkoutDetail(
         @Path("userId") userId: String,

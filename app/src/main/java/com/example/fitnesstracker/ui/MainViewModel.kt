@@ -6,6 +6,7 @@ import com.example.fitnesstracker.data.FitnessRepository
 import com.example.fitnesstracker.data.remote.Exercise
 import com.example.fitnesstracker.data.remote.User
 import com.example.fitnesstracker.data.remote.Workout
+import com.example.fitnesstracker.data.remote.WorkoutPlan
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,7 @@ import kotlinx.coroutines.launch
 data class FitnessUiState(
     val user: User? = null,
     val workouts: List<Workout> = emptyList(),
+    val workoutPlans: List<WorkoutPlan> = emptyList(),
     val exercises: List<Exercise> = emptyList(),
     val selectedWorkoutId: String? = null,
     val selectedWorkout: Workout? = null,
@@ -41,18 +43,22 @@ class MainViewModel(
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             val userResult = repository.fetchUser()
             val workoutsResult = repository.fetchWorkouts()
+            val workoutPlansResult = repository.fetchWorkoutPlans()
             val exercisesResult = repository.fetchExercises()
 
             _uiState.update { state ->
                 val workouts = workoutsResult.getOrNull() ?: state.workouts
+                val workoutPlans = workoutPlansResult.getOrNull() ?: state.workoutPlans
                 val exercises = exercisesResult.getOrNull() ?: state.exercises
                 state.copy(
                     user = userResult.getOrNull() ?: state.user,
                     workouts = workouts,
+                    workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
                     errorMessage = userResult.exceptionOrNull()?.message
                         ?: workoutsResult.exceptionOrNull()?.message
+                        ?: workoutPlansResult.exceptionOrNull()?.message
                         ?: exercisesResult.exceptionOrNull()?.message
                 )
             }

@@ -68,6 +68,18 @@ data class Workout(
 )
 
 @Serializable
+data class WorkoutPlan(
+    val id: String,
+    val name: String? = null,
+    val sets: Int? = null,
+    val type: String? = null,
+    @SerialName("muscle_group") val muscleGroup: String? = null,
+    @SerialName("number_of_exercises") val numberOfExercises: Int? = null,
+    val description: String? = null,
+    val exercises: Map<String, String> = emptyMap()
+)
+
+@Serializable
 data class CreateWorkoutRequest(
     val date: String? = null,
     val startTime: String? = null,

@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 
 package com.example.fitnesstracker.ui
 
@@ -10,6 +10,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -30,6 +31,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -95,6 +98,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitnesstracker.data.remote.Exercise
 import com.example.fitnesstracker.data.remote.WorkoutItem
+import com.example.fitnesstracker.data.remote.WorkoutPlan
 import com.example.fitnesstracker.data.remote.WorkoutSet
 import com.example.fitnesstracker.ui.theme.Blue500
 import com.example.fitnesstracker.ui.theme.Orange500
@@ -114,13 +118,43 @@ private data class StatSummary(
     val progress: Float
 )
 
-private data class WorkoutHighlight(
+private data class WorkoutPlanHighlight(
     val title: String,
     val subtitle: String,
-    val duration: String,
-    val calories: String,
-    val badge: String
+    val exerciseCount: String,
+    val setCount: String,
+    val badge: String,
+    val description: String? = null,
+    val exercisePreview: String? = null
 )
+
+private fun WorkoutPlan.toHighlight(): WorkoutPlanHighlight {
+    val titleText = name?.trim().takeUnless { it.isNullOrBlank() } ?: "Upper Body Power"
+    val typeLabel = type?.trim().takeUnless { it.isNullOrBlank() }?.toDisplayLabel()
+    val muscleLabel = muscleGroup?.trim().takeUnless { it.isNullOrBlank() }?.toDisplayLabel()
+    val subtitleText = listOfNotNull(typeLabel, muscleLabel).joinToString(" - ").ifBlank { "Workout Plan" }
+    val exercisesCountValue = numberOfExercises ?: exercises.size.takeIf { it > 0 } ?: 0
+    val setsCountValue = sets ?: 0
+    val exerciseList = exercises.entries
+        .sortedBy { it.key }
+        .map { it.value.trim() }
+        .filter { it.isNotBlank() }
+    val exercisePreview = exerciseList.take(3).joinToString(", ").takeIf { it.isNotBlank() }
+        ?.let { "Exercises: $it" }
+
+    return WorkoutPlanHighlight(
+        title = titleText,
+        subtitle = subtitleText,
+        exerciseCount = "$exercisesCountValue exercises",
+        setCount = "$setsCountValue sets",
+        badge = "Workout Plan",
+        description = description?.trim().takeUnless { it.isNullOrBlank() },
+        exercisePreview = exercisePreview
+    )
+}
+
+private fun String.toDisplayLabel(): String =
+    replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
 
 private data class ProgressDay(
     val label: String,
@@ -202,10 +236,6 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
             FitnessDestination.Home -> HomeScreen(
                 state = state,
                 onOpenCreateWorkout = { destination = FitnessDestination.CreateWorkout },
-                onOpenWorkout = { id ->
-                    destination = FitnessDestination.WorkoutDetail(id)
-                    viewModel.selectWorkout(id, force = true)
-                },
                 modifier = Modifier.padding(padding)
             )
 
@@ -247,25 +277,14 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
 private fun HomeScreen(
     state: FitnessUiState,
     onOpenCreateWorkout: () -> Unit,
-    onOpenWorkout: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val displayName = state.user?.firstName?.takeIf { it.isNotBlank() } ?: "Alex"
+    val displayName = state.user?.firstName?.takeIf { it.isNotBlank() } ?: "Kunaal"
     val streakCount = remember(state.workouts) {
         if (state.workouts.isNotEmpty()) state.workouts.size.coerceAtMost(12) else 12
     }
-    val highlightWorkout = remember(state.workouts) { state.workouts.firstOrNull() }
-    val highlight = remember(highlightWorkout) {
-        WorkoutHighlight(
-            title = highlightWorkout?.notes?.takeIf { it.isNotBlank() } ?: "Upper Body Power",
-            subtitle = highlightWorkout?.items?.takeIf { it.isNotEmpty() }
-                ?.let { "Strength - ${it.size} exercises" }
-                ?: "Strength - Intermediate",
-            duration = "45 min",
-            calories = "320 Kcal",
-            badge = if (highlightWorkout != null) "Scheduled" else "Suggested"
-        )
-    }
+    val workoutPlans = state.workoutPlans
+    val hasWorkoutPlans = workoutPlans.isNotEmpty()
     val progressDays = listOf(
         ProgressDay("Mon", "20 min", 0.4f),
         ProgressDay("Tue", "45 min", 0.7f),
@@ -382,11 +401,9 @@ private fun HomeScreen(
                 item {
                     StaggeredItem(delayMillis = 200) {
                         TodayWorkoutSection(
-                            highlight = highlight,
-                            onStartWorkout = {
-                                highlightWorkout?.let { onOpenWorkout(it.id) } ?: onOpenCreateWorkout()
-                            },
-                            ctaLabel = if (highlightWorkout != null) "Start Workout" else "Create Workout"
+                            workoutPlans = workoutPlans,
+                            onStartWorkout = onOpenCreateWorkout,
+                            ctaLabel = if (hasWorkoutPlans) "Start Workout" else "Create Workout"
                         )
                     }
                 }
@@ -674,7 +691,7 @@ private fun StatSummaryCard(summary: StatSummary, modifier: Modifier = Modifier)
 
 @Composable
 private fun TodayWorkoutSection(
-    highlight: WorkoutHighlight,
+    workoutPlans: List<WorkoutPlan>,
     onStartWorkout: () -> Unit,
     ctaLabel: String,
     modifier: Modifier = Modifier
@@ -697,32 +714,70 @@ private fun TodayWorkoutSection(
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-        ) {
-            BoxWithConstraints {
-                val isCompact = maxWidth < compactWidthThreshold
-                if (isCompact) {
-                    Column {
-                        WorkoutImagePanel(highlight = highlight)
-                        WorkoutDetailPanel(highlight = highlight, onStartWorkout = onStartWorkout, ctaLabel = ctaLabel)
-                    }
-                } else {
-                    Row {
-                        WorkoutImagePanel(
-                            highlight = highlight,
-                            modifier = Modifier.weight(0.42f)
-                        )
-                        WorkoutDetailPanel(
-                            highlight = highlight,
-                            onStartWorkout = onStartWorkout,
-                            ctaLabel = ctaLabel,
-                            modifier = Modifier.weight(0.58f)
-                        )
-                    }
+        if (workoutPlans.isEmpty()) {
+            WorkoutPlanCard(
+                highlight = WorkoutPlanHighlight(
+                    title = "Upper Body Power",
+                    subtitle = "Strength - Chest",
+                    exerciseCount = "6 exercises",
+                    setCount = "24 sets",
+                    badge = "Workout Plan"
+                ),
+                onStartWorkout = onStartWorkout,
+                ctaLabel = ctaLabel,
+                modifier = Modifier.fillMaxWidth()
+            )
+        } else {
+            val pagerState = rememberPagerState(pageCount = { workoutPlans.size })
+            HorizontalPager(
+                state = pagerState,
+                contentPadding = PaddingValues(horizontal = 4.dp),
+                pageSpacing = 14.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) { page ->
+                WorkoutPlanCard(
+                    highlight = workoutPlans[page].toHighlight(),
+                    onStartWorkout = onStartWorkout,
+                    ctaLabel = ctaLabel,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutPlanCard(
+    highlight: WorkoutPlanHighlight,
+    onStartWorkout: () -> Unit,
+    ctaLabel: String,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    ) {
+        BoxWithConstraints {
+            val isCompact = maxWidth < compactWidthThreshold
+            if (isCompact) {
+                Column {
+                    WorkoutImagePanel(highlight = highlight)
+                    WorkoutDetailPanel(highlight = highlight, onStartWorkout = onStartWorkout, ctaLabel = ctaLabel)
+                }
+            } else {
+                Row {
+                    WorkoutImagePanel(
+                        highlight = highlight,
+                        modifier = Modifier.weight(0.42f)
+                    )
+                    WorkoutDetailPanel(
+                        highlight = highlight,
+                        onStartWorkout = onStartWorkout,
+                        ctaLabel = ctaLabel,
+                        modifier = Modifier.weight(0.58f)
+                    )
                 }
             }
         }
@@ -731,7 +786,7 @@ private fun TodayWorkoutSection(
 
 @Composable
 private fun WorkoutImagePanel(
-    highlight: WorkoutHighlight,
+    highlight: WorkoutPlanHighlight,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -785,7 +840,7 @@ private fun WorkoutImagePanel(
 
 @Composable
 private fun WorkoutDetailPanel(
-    highlight: WorkoutHighlight,
+    highlight: WorkoutPlanHighlight,
     onStartWorkout: () -> Unit,
     ctaLabel: String,
     modifier: Modifier = Modifier
@@ -826,12 +881,30 @@ private fun WorkoutDetailPanel(
                 )
             }
         }
+        highlight.description?.takeIf { it.isNotBlank() }?.let { description ->
+            Text(
+                description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        highlight.exercisePreview?.takeIf { it.isNotBlank() }?.let { exercisePreview ->
+            Text(
+                exercisePreview,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(imageVector = Icons.Rounded.Timer, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(highlight.duration, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(highlight.exerciseCount, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(modifier = Modifier.width(6.dp))
             Icon(imageVector = Icons.Rounded.LocalFireDepartment, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(highlight.calories, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(highlight.setCount, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Button(
             onClick = onStartWorkout,

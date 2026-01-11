@@ -11,6 +11,7 @@ import com.example.fitnesstracker.data.remote.NetworkModule
 import com.example.fitnesstracker.data.remote.User
 import com.example.fitnesstracker.data.remote.UsersApi
 import com.example.fitnesstracker.data.remote.Workout
+import com.example.fitnesstracker.data.remote.WorkoutPlan
 import com.example.fitnesstracker.data.remote.WorkoutsApi
 
 class FitnessRepository(
@@ -26,6 +27,9 @@ class FitnessRepository(
 
     suspend fun fetchWorkouts(limit: Int? = AppConfig.DEFAULT_WORKOUT_FETCH_LIMIT): Result<List<Workout>> =
         runCatching { workoutsApi.getWorkouts(userId, limit = limit) }
+
+    suspend fun fetchWorkoutPlans(): Result<List<WorkoutPlan>> =
+        runCatching { workoutsApi.getAllWorkouts() }
 
     suspend fun fetchWorkoutDetail(workoutId: String): Result<Workout> =
         runCatching { workoutsApi.getWorkoutDetail(userId, workoutId, includeItems = true, includeSets = true) }
