@@ -37,7 +37,6 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.DirectionsRun
-import androidx.compose.material.icons.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Home
@@ -267,11 +266,6 @@ private fun HomeScreen(
             badge = if (highlightWorkout != null) "Scheduled" else "Suggested"
         )
     }
-    val stats = listOf(
-        StatSummary("Kcal", "450", Orange500, Icons.Rounded.LocalFireDepartment, 0.75f),
-        StatSummary("Time", "45m", Blue500, Icons.Rounded.Timer, 0.5f),
-        StatSummary("Steps", "3.2k", MaterialTheme.colorScheme.primary, Icons.Rounded.DirectionsWalk, 0.4f)
-    )
     val progressDays = listOf(
         ProgressDay("Mon", "20 min", 0.4f),
         ProgressDay("Tue", "45 min", 0.7f),
@@ -383,18 +377,6 @@ private fun HomeScreen(
                             notificationCount = 1,
                             showStreakInline = !isCompact
                         )
-                    }
-                }
-                if (isCompact) {
-                    item {
-                        StaggeredItem(delayMillis = 80) {
-                            DailyStreakCard(streakCount = streakCount)
-                        }
-                    }
-                }
-                item {
-                    StaggeredItem(delayMillis = 140) {
-                        StatsSummaryRow(stats = stats)
                     }
                 }
                 item {
