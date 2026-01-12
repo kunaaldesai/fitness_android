@@ -3,12 +3,15 @@
 package com.example.fitnesstracker.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -98,11 +101,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -153,7 +159,14 @@ private data class WorkoutPlanHighlight(
 private fun WorkoutPlan.toHighlight(): WorkoutPlanHighlight {
     val titleText = name?.trim().takeUnless { it.isNullOrBlank() } ?: "Upper Body Power"
     val typeLabel = type?.trim().takeUnless { it.isNullOrBlank() }?.toDisplayLabel()
-    val muscleLabel = muscleGroup?.trim().takeUnless { it.isNullOrBlank() }?.toDisplayLabel()
+    val muscleLabels = muscleGroups.mapNotNull { it.trim().takeIf { label -> label.isNotBlank() } }
+        .map { it.toDisplayLabel() }
+    val muscleLabel = when {
+        muscleLabels.isEmpty() -> null
+        muscleLabels.size == 1 -> muscleLabels.first()
+        muscleLabels.size == 2 -> muscleLabels.joinToString(" + ")
+        else -> muscleLabels.take(2).joinToString(" + ") + " +${muscleLabels.size - 2}"
+    }
     val subtitleText = listOfNotNull(typeLabel, muscleLabel).joinToString(" - ").ifBlank { "Workout Plan" }
     val exerciseList = exercises.toStringList()
     val exercisesCountValue = numberOfExercises ?: exerciseList.size.takeIf { it > 0 } ?: 0
@@ -283,6 +296,11 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
                 onBack = { destination = FitnessDestination.Home },
                 isSubmitting = state.isActionRunning,
                 onCreateWorkoutPlan = viewModel::createWorkoutPlan,
+                showSuccess = state.recentlyCreatedWorkoutPlanId != null,
+                onSuccessComplete = {
+                    viewModel.consumeRecentlyCreatedWorkoutPlan()
+                    destination = FitnessDestination.Home
+                },
                 modifier = Modifier.padding(padding)
             )
 
@@ -1366,16 +1384,18 @@ private fun CreateWorkoutPlanScreen(
         description: String?,
         exercises: List<String>,
         equipment: List<String>,
-        muscleGroup: String?,
+        muscleGroups: List<String>,
         numberOfExercises: Int?,
         sets: Int?,
         type: String?
     ) -> Unit,
+    showSuccess: Boolean,
+    onSuccessComplete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var name by rememberSaveable { mutableStateOf("") }
     var type by rememberSaveable { mutableStateOf("") }
-    var muscleGroup by rememberSaveable { mutableStateOf("") }
+    val muscleGroups = remember { mutableStateListOf<String>() }
     var description by rememberSaveable { mutableStateOf("") }
     var setsText by rememberSaveable { mutableStateOf("") }
     var nameError by rememberSaveable { mutableStateOf(false) }
@@ -1412,6 +1432,16 @@ private fun CreateWorkoutPlanScreen(
         errorBorderColor = MaterialTheme.colorScheme.error,
         errorContainerColor = Color.White.copy(alpha = 0.05f)
     )
+
+    var showSuccessOverlay by remember { mutableStateOf(false) }
+    LaunchedEffect(showSuccess) {
+        if (showSuccess) {
+            showSuccessOverlay = true
+            delay(1200)
+            onSuccessComplete()
+            showSuccessOverlay = false
+        }
+    }
 
     LaunchedEffect(showExerciseInput) {
         if (showExerciseInput) {
@@ -1628,7 +1658,7 @@ private fun CreateWorkoutPlanScreen(
                                 )
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     items(focusOptions) { option ->
-                                        val isSelected = muscleGroup == option
+                                        val isSelected = muscleGroups.contains(option)
                                         Box(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(16.dp))
@@ -1641,7 +1671,11 @@ private fun CreateWorkoutPlanScreen(
                                                     RoundedCornerShape(16.dp)
                                                 )
                                                 .clickable {
-                                                    muscleGroup = if (isSelected) "" else option
+                                                    if (isSelected) {
+                                                        muscleGroups.remove(option)
+                                                    } else {
+                                                        muscleGroups.add(option)
+                                                    }
                                                 }
                                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                                             contentAlignment = Alignment.Center
@@ -2126,21 +2160,24 @@ private fun CreateWorkoutPlanScreen(
                     .clickable(enabled = buttonEnabled) {
                         nameError = name.isBlank()
                         if (nameError) return@clickable
-                        val numberOfExercises = exercises.size.takeIf { it > 0 }
+                        val exerciseList = exercises.toList()
+                        val equipmentList = equipment.toList()
+                        val numberOfExercises = exerciseList.size.takeIf { it > 0 }
                         val sets = setsText.toIntOrNull()
+                        val selectedMuscleGroups = muscleGroups.map { it.trim() }.filter { it.isNotBlank() }
                         onCreateWorkoutPlan(
                             name,
                             description.ifBlank { null },
-                            exercises,
-                            equipment,
-                            muscleGroup.ifBlank { null },
+                            exerciseList,
+                            equipmentList,
+                            selectedMuscleGroups,
                             numberOfExercises,
                             sets,
                             type.ifBlank { null }
                         )
                         name = ""
                         type = ""
-                        muscleGroup = ""
+                        muscleGroups.clear()
                         description = ""
                         setsText = ""
                         exercises.clear()
@@ -2185,6 +2222,94 @@ private fun CreateWorkoutPlanScreen(
                     .size(width = 120.dp, height = 4.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.1f))
+            )
+        }
+
+        AnimatedVisibility(
+            visible = showSuccessOverlay,
+            enter = fadeIn(animationSpec = tween(250)) + scaleIn(animationSpec = tween(300)),
+            exit = fadeOut(animationSpec = tween(200))
+        ) {
+            WorkoutPlanSuccessOverlay(
+                accent = accent,
+                background = background,
+                message = "Workout plan created"
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkoutPlanSuccessOverlay(
+    accent: Color,
+    background: Color,
+    message: String,
+    modifier: Modifier = Modifier
+) {
+    var animateIn by remember { mutableStateOf(false) }
+    val sweepAngle by animateFloatAsState(
+        targetValue = if (animateIn) 300f else 0f,
+        animationSpec = tween(durationMillis = 720, easing = FastOutSlowInEasing),
+        label = "successSweep"
+    )
+    val checkScale by animateFloatAsState(
+        targetValue = if (animateIn) 1f else 0.7f,
+        animationSpec = tween(durationMillis = 420, delayMillis = 160, easing = FastOutSlowInEasing),
+        label = "successScale"
+    )
+
+    LaunchedEffect(Unit) {
+        animateIn = true
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(background.copy(alpha = 0.86f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier.size(140.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawArc(
+                        color = accent,
+                        startAngle = -90f,
+                        sweepAngle = sweepAngle,
+                        useCenter = false,
+                        style = Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .scale(checkScale)
+                        .background(accent.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+            Text(
+                text = message,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = "Added to your library",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.6f)
             )
         }
     }

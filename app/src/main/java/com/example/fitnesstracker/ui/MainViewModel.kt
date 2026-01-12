@@ -21,6 +21,7 @@ data class FitnessUiState(
     val selectedWorkoutId: String? = null,
     val selectedWorkout: Workout? = null,
     val recentlyCreatedWorkoutId: String? = null,
+    val recentlyCreatedWorkoutPlanId: String? = null,
     val isLoading: Boolean = false,
     val isActionRunning: Boolean = false,
     val errorMessage: String? = null,
@@ -74,6 +75,10 @@ class MainViewModel(
 
     fun consumeRecentlyCreatedWorkout() {
         _uiState.update { it.copy(recentlyCreatedWorkoutId = null) }
+    }
+
+    fun consumeRecentlyCreatedWorkoutPlan() {
+        _uiState.update { it.copy(recentlyCreatedWorkoutPlanId = null) }
     }
 
     fun selectWorkout(workoutId: String, force: Boolean = false, infoMessage: String? = null) {
@@ -145,7 +150,7 @@ class MainViewModel(
         description: String?,
         exercises: List<String>,
         equipment: List<String>,
-        muscleGroup: String?,
+        muscleGroups: List<String>,
         numberOfExercises: Int?,
         sets: Int?,
         type: String?
@@ -155,6 +160,7 @@ class MainViewModel(
             _uiState.update { it.copy(errorMessage = "Workout name is required.") }
             return
         }
+        val sanitizedMuscleGroups = muscleGroups.map { it.trim() }.filter { it.isNotBlank() }
         viewModelScope.launch {
             _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
             val result = repository.createWorkoutPlan(
@@ -162,14 +168,14 @@ class MainViewModel(
                 description = description?.takeUnless { it.isNullOrBlank() },
                 exercises = exercises,
                 equipment = equipment,
-                muscleGroup = muscleGroup?.takeUnless { it.isNullOrBlank() },
+                muscleGroups = sanitizedMuscleGroups,
                 numberOfExercises = numberOfExercises,
                 sets = sets,
                 type = type?.takeUnless { it.isNullOrBlank() }
             )
             result.fold(
-                onSuccess = {
-                    refreshWorkoutPlans(infoMessage = "Workout plan created")
+                onSuccess = { id ->
+                    refreshWorkoutPlans(createdWorkoutPlanId = id)
                 },
                 onFailure = { error ->
                     _uiState.update {
@@ -284,14 +290,18 @@ class MainViewModel(
         selectWorkoutId?.let { selectWorkout(it, force = true, infoMessage = infoMessage) }
     }
 
-    private suspend fun refreshWorkoutPlans(infoMessage: String? = null) {
+    private suspend fun refreshWorkoutPlans(
+        infoMessage: String? = null,
+        createdWorkoutPlanId: String? = null
+    ) {
         val workoutPlansResult = repository.fetchWorkoutPlans()
         _uiState.update { state ->
             state.copy(
                 workoutPlans = workoutPlansResult.getOrDefault(state.workoutPlans),
                 isActionRunning = false,
                 errorMessage = workoutPlansResult.exceptionOrNull()?.message,
-                infoMessage = infoMessage ?: state.infoMessage
+                infoMessage = infoMessage ?: state.infoMessage,
+                recentlyCreatedWorkoutPlanId = createdWorkoutPlanId ?: state.recentlyCreatedWorkoutPlanId
             )
         }
     }

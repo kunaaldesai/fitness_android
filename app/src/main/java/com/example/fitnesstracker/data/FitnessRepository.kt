@@ -59,7 +59,7 @@ class FitnessRepository(
         description: String?,
         exercises: List<String>,
         equipment: List<String>,
-        muscleGroup: String?,
+        muscleGroups: List<String>,
         numberOfExercises: Int?,
         sets: Int?,
         type: String?
@@ -70,7 +70,7 @@ class FitnessRepository(
                 description = description,
                 exercises = exercises,
                 equipment = equipment,
-                muscleGroup = muscleGroup,
+                muscleGroups = muscleGroups,
                 numberOfExercises = numberOfExercises,
                 sets = sets,
                 type = type,
