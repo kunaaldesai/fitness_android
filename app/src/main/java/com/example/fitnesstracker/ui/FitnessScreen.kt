@@ -228,6 +228,7 @@ private val bottomNavItems = listOf(
 
 sealed interface FitnessDestination {
     data object Home : FitnessDestination
+    data object Explore : FitnessDestination
     data object CreateWorkout : FitnessDestination
     data object CreateWorkoutPlan : FitnessDestination
     data class WorkoutDetail(val id: String) : FitnessDestination
@@ -240,6 +241,7 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     var destination by remember { mutableStateOf<FitnessDestination>(FitnessDestination.Home) }
     val isHome = destination == FitnessDestination.Home
+    val showBottomNav = destination == FitnessDestination.Home || destination == FitnessDestination.Explore
 
     state.errorMessage?.let { message ->
         LaunchedEffect(message) {
@@ -270,8 +272,22 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
             }
         },
         bottomBar = {
-            if (isHome) {
-                BottomNavBar()
+            if (showBottomNav) {
+                val selectedIndex = when (destination) {
+                    FitnessDestination.Home -> 0
+                    FitnessDestination.Explore -> 1
+                    else -> 0
+                }
+                BottomNavBar(
+                    selectedIndex = selectedIndex,
+                    onSelect = { index ->
+                        destination = when (index) {
+                            0 -> FitnessDestination.Home
+                            1 -> FitnessDestination.Explore
+                            else -> destination
+                        }
+                    }
+                )
             }
         }
     ) { padding ->
@@ -279,6 +295,12 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
             FitnessDestination.Home -> HomeScreen(
                 state = state,
                 onOpenCreateWorkout = { destination = FitnessDestination.CreateWorkout },
+                modifier = Modifier.padding(padding)
+            )
+
+            FitnessDestination.Explore -> ExploreScreen(
+                state = state,
+                onStartWorkout = { destination = FitnessDestination.CreateWorkout },
                 modifier = Modifier.padding(padding)
             )
 
@@ -311,7 +333,7 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
                 onAddItem = viewModel::addItemToWorkout,
                 onAddSet = viewModel::addSet,
                 onCreateExercise = { destination = FitnessDestination.CreateExercise },
-                onRefresh = { viewModel.selectWorkout(screen.id, force = true) },
+                onRefresh = { viewModel.selectWorkout(screen.id) },
                 modifier = Modifier.padding(padding)
             )
 
@@ -477,6 +499,108 @@ private fun HomeScreen(
                         StaggeredItem(delayMillis = 380) {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExploreScreen(
+    state: FitnessUiState,
+    onStartWorkout: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val workoutPlans = state.workoutPlans
+    val hasPlans = workoutPlans.isNotEmpty()
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.background,
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        )
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .size(220.dp)
+                .offset(x = 160.dp, y = (-40).dp)
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
+                            Color.Transparent
+                        )
+                    ),
+                    shape = CircleShape
+                )
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 140.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            item {
+                StaggeredItem(delayMillis = 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "Explore Plans",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                if (hasPlans) "All workout plans in your library." else "No plans yet. Create your first plan.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Rounded.Explore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            if (!hasPlans) {
+                item {
+                    StaggeredItem(delayMillis = 120) {
+                        WorkoutPlanCard(
+                            highlight = WorkoutPlanHighlight(
+                                title = "Build a Plan",
+                                subtitle = "Start with your goal",
+                                exerciseCount = "0 exercises",
+                                setCount = "0 sets",
+                                badge = "Workout Plan",
+                                description = "Create a plan to see it here."
+                            ),
+                            onStartWorkout = onStartWorkout,
+                            ctaLabel = "Create Workout",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            } else {
+                items(workoutPlans, key = { it.id }) { plan ->
+                    StaggeredItem(delayMillis = 120) {
+                        WorkoutPlanCard(
+                            highlight = plan.toHighlight(),
+                            onStartWorkout = onStartWorkout,
+                            ctaLabel = "Start Workout",
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
@@ -1208,7 +1332,11 @@ private fun HomeFloatingActionButton(
 }
 
 @Composable
-private fun BottomNavBar(modifier: Modifier = Modifier) {
+private fun BottomNavBar(
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
@@ -1223,11 +1351,11 @@ private fun BottomNavBar(modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             bottomNavItems.forEachIndexed { index, item ->
-                val isSelected = index == 0
+                val isSelected = index == selectedIndex
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable { },
+                        .clickable { onSelect(index) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -2331,8 +2459,10 @@ private fun WorkoutDetailScreen(
             ?: state.workouts.firstOrNull { it.id == workoutId }
     }
 
-    LaunchedEffect(workoutId) {
-        onRefresh()
+    LaunchedEffect(workoutId, state.selectedWorkout?.id) {
+        if (state.selectedWorkout?.id != workoutId) {
+            onRefresh()
+        }
     }
 
     Box(
