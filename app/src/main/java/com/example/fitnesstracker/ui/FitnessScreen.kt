@@ -58,6 +58,7 @@ import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Pool
 import androidx.compose.material.icons.rounded.Repeat
@@ -218,6 +219,18 @@ private data class NavItem(
     val label: String,
     val icon: ImageVector
 )
+
+private data class LapEntry(
+    val label: String,
+    val lapMs: Long,
+    val totalMs: Long,
+    val isAuto: Boolean
+)
+
+private enum class TimerMode {
+    Stopwatch,
+    Timer
+}
 
 private val bottomNavItems = listOf(
     NavItem("Home", Icons.Rounded.Home),
@@ -486,17 +499,22 @@ private fun HomeScreen(
                 }
                 item {
                     StaggeredItem(delayMillis = 260) {
-                        ProgressOverviewSection(days = progressDays)
+                        StopwatchTimerCard(modifier = Modifier.fillMaxWidth())
                     }
                 }
                 item {
                     StaggeredItem(delayMillis = 320) {
+                        ProgressOverviewSection(days = progressDays)
+                    }
+                }
+                item {
+                    StaggeredItem(delayMillis = 380) {
                         RecentActivitySection(activities = activityItems)
                     }
                 }
                 if (state.isLoading) {
                     item {
-                        StaggeredItem(delayMillis = 380) {
+                        StaggeredItem(delayMillis = 440) {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                         }
                     }
@@ -923,6 +941,882 @@ private fun TodayWorkoutSection(
             }
         }
     }
+}
+
+@Composable
+private fun StopwatchTimerCard(modifier: Modifier = Modifier) {
+    var mode by rememberSaveable { mutableStateOf(TimerMode.Stopwatch) }
+    var stopwatchRunning by rememberSaveable { mutableStateOf(false) }
+    var stopwatchElapsedMs by rememberSaveable { mutableStateOf(0L) }
+    var stopwatchStartMs by rememberSaveable { mutableStateOf(0L) }
+    var lapEnabled by rememberSaveable { mutableStateOf(true) }
+    var intervalsEnabled by rememberSaveable { mutableStateOf(false) }
+    val lapEntries = remember { mutableStateListOf<LapEntry>() }
+    var lapMarkMs by rememberSaveable { mutableStateOf(0L) }
+    var lapCount by rememberSaveable { mutableStateOf(0) }
+    var intervalCount by rememberSaveable { mutableStateOf(0) }
+    var intervalLengthMs by rememberSaveable { mutableStateOf(30_000L) }
+    var lastIntervalIndex by rememberSaveable { mutableStateOf(0) }
+    var timerRunning by rememberSaveable { mutableStateOf(false) }
+    var timerTotalMs by rememberSaveable { mutableStateOf(3 * 60 * 1000L) }
+    var timerRemainingMs by rememberSaveable { mutableStateOf(3 * 60 * 1000L) }
+    var timerStartMs by rememberSaveable { mutableStateOf(0L) }
+    var customMinutesText by rememberSaveable { mutableStateOf("03") }
+    var customSecondsText by rememberSaveable { mutableStateOf("00") }
+    val accent = if (mode == TimerMode.Stopwatch) {
+        MaterialTheme.colorScheme.tertiary
+    } else {
+        MaterialTheme.colorScheme.secondary
+    }
+    val stopwatchProgress = ((stopwatchElapsedMs % 60_000L).toFloat() / 60_000f).coerceIn(0f, 1f)
+    val timerProgress = if (timerTotalMs > 0L) {
+        (timerRemainingMs.toFloat() / timerTotalMs.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val intervalRemainingMs = if (intervalLengthMs > 0L) {
+        val remainder = intervalLengthMs - (stopwatchElapsedMs % intervalLengthMs)
+        if (remainder == intervalLengthMs) intervalLengthMs else remainder
+    } else {
+        0L
+    }
+    val intervalRemainingLabel = formatMinutesSeconds(intervalRemainingMs)
+    val ringProgress by animateFloatAsState(
+        targetValue = if (mode == TimerMode.Stopwatch) stopwatchProgress else timerProgress,
+        animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+        label = "stopwatchTimerRing"
+    )
+    val stopwatchLabel = formatMinutesSeconds(stopwatchElapsedMs)
+    val timerLabel = formatMinutesSeconds(timerRemainingMs)
+    val customMinutes = customMinutesText.toIntOrNull()?.coerceAtLeast(0) ?: 0
+    val customSeconds = customSecondsText.toIntOrNull()?.coerceIn(0, 59) ?: 0
+    val customTotalMs = (customMinutes * 60L + customSeconds) * 1000L
+    val customSetEnabled = customTotalMs > 0L
+    val onModeChange: (TimerMode) -> Unit = { newMode ->
+        if (newMode != mode) {
+            mode = newMode
+        }
+    }
+    fun addLapEntry(isAuto: Boolean) {
+        if (stopwatchElapsedMs <= 0L) return
+        val lapMs = (stopwatchElapsedMs - lapMarkMs).coerceAtLeast(0L)
+        lapMarkMs = stopwatchElapsedMs
+        val label = if (isAuto) {
+            val nextIndex = intervalCount + 1
+            intervalCount = nextIndex
+            "Interval $nextIndex"
+        } else {
+            val nextIndex = lapCount + 1
+            lapCount = nextIndex
+            "Lap $nextIndex"
+        }
+        lapEntries.add(
+            0,
+            LapEntry(
+                label = label,
+                lapMs = lapMs,
+                totalMs = stopwatchElapsedMs,
+                isAuto = isAuto
+            )
+        )
+    }
+
+    LaunchedEffect(stopwatchRunning, intervalsEnabled, intervalLengthMs) {
+        if (!stopwatchRunning) return@LaunchedEffect
+        while (stopwatchRunning) {
+            val now = System.currentTimeMillis()
+            stopwatchElapsedMs = now - stopwatchStartMs
+            if (intervalsEnabled && intervalLengthMs > 0L) {
+                val currentIndex = (stopwatchElapsedMs / intervalLengthMs).toInt()
+                if (currentIndex > lastIntervalIndex && stopwatchElapsedMs >= intervalLengthMs) {
+                    lastIntervalIndex = currentIndex
+                    addLapEntry(true)
+                }
+            }
+            delay(100L)
+        }
+    }
+
+    LaunchedEffect(timerRunning, timerTotalMs) {
+        if (!timerRunning) return@LaunchedEffect
+        while (timerRunning) {
+            val now = System.currentTimeMillis()
+            val elapsed = now - timerStartMs
+            val remaining = (timerTotalMs - elapsed).coerceAtLeast(0L)
+            timerRemainingMs = remaining
+            if (remaining == 0L) {
+                timerRunning = false
+            }
+            delay(100L)
+        }
+    }
+    val onToggleStopwatch = {
+        if (stopwatchRunning) {
+            stopwatchRunning = false
+        } else {
+            stopwatchStartMs = System.currentTimeMillis() - stopwatchElapsedMs
+            lastIntervalIndex = if (intervalLengthMs > 0L) {
+                (stopwatchElapsedMs / intervalLengthMs).toInt()
+            } else {
+                0
+            }
+            stopwatchRunning = true
+        }
+    }
+    val onResetStopwatch = {
+        stopwatchRunning = false
+        stopwatchElapsedMs = 0L
+        lapEntries.clear()
+        lapMarkMs = 0L
+        lapCount = 0
+        intervalCount = 0
+        lastIntervalIndex = 0
+    }
+    val onToggleLap = {
+        lapEnabled = !lapEnabled
+    }
+    val onToggleIntervals = {
+        val newValue = !intervalsEnabled
+        intervalsEnabled = newValue
+        if (newValue) {
+            lastIntervalIndex = if (intervalLengthMs > 0L) {
+                (stopwatchElapsedMs / intervalLengthMs).toInt()
+            } else {
+                0
+            }
+        }
+    }
+    val onLap = {
+        if (lapEnabled && stopwatchRunning) {
+            addLapEntry(false)
+        }
+    }
+    val onToggleTimer = {
+        if (timerRunning) {
+            timerRunning = false
+        } else {
+            if (timerRemainingMs <= 0L) {
+                timerRemainingMs = timerTotalMs
+            }
+            timerStartMs = System.currentTimeMillis() - (timerTotalMs - timerRemainingMs)
+            timerRunning = true
+        }
+    }
+    val onResetTimer = {
+        timerRunning = false
+        timerRemainingMs = timerTotalMs
+    }
+    val onSelectInterval: (Long) -> Unit = { intervalMs ->
+        intervalLengthMs = intervalMs
+        lastIntervalIndex = if (intervalMs > 0L) {
+            (stopwatchElapsedMs / intervalMs).toInt()
+        } else {
+            0
+        }
+    }
+    val onSelectTimerPreset: (Long) -> Unit = { preset ->
+        timerRunning = false
+        timerTotalMs = preset
+        timerRemainingMs = preset
+        val totalSeconds = preset / 1000L
+        customMinutesText = (totalSeconds / 60L).toString().padStart(2, '0')
+        customSecondsText = (totalSeconds % 60L).toString().padStart(2, '0')
+    }
+    val onSetCustomTimer = {
+        if (customTotalMs > 0L) {
+            timerRunning = false
+            timerTotalMs = customTotalMs
+            timerRemainingMs = customTotalMs
+            customMinutesText = customMinutes.toString().padStart(2, '0')
+            customSecondsText = customSeconds.toString().padStart(2, '0')
+        }
+    }
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        )
+                    )
+                )
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(180.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 70.dp, y = (-60).dp)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                accent.copy(alpha = 0.22f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
+                    )
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Stopwatch + Timer",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "Intervals and countdowns, ready for training blocks.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(accent.copy(alpha = 0.15f), RoundedCornerShape(14.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Timer,
+                            contentDescription = null,
+                            tint = accent
+                        )
+                    }
+                }
+                StopwatchTimerModeToggle(
+                    mode = mode,
+                    onModeChange = onModeChange,
+                    accent = accent,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val isCompact = maxWidth < compactWidthThreshold
+                    if (isCompact) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            StopwatchTimerDial(
+                                timeLabel = if (mode == TimerMode.Stopwatch) stopwatchLabel else timerLabel,
+                                subLabel = if (mode == TimerMode.Stopwatch) "min:sec" else "countdown",
+                                accent = accent,
+                                progress = ringProgress
+                            )
+                            StopwatchTimerDetails(
+                                mode = mode,
+                                accent = accent,
+                                stopwatchRunning = stopwatchRunning,
+                                stopwatchElapsedMs = stopwatchElapsedMs,
+                                lapEnabled = lapEnabled,
+                                intervalsEnabled = intervalsEnabled,
+                                onToggleStopwatch = onToggleStopwatch,
+                                onResetStopwatch = onResetStopwatch,
+                                onToggleLap = onToggleLap,
+                                onToggleIntervals = onToggleIntervals,
+                                onLap = onLap,
+                                lapEntries = lapEntries,
+                                intervalLengthMs = intervalLengthMs,
+                                intervalRemainingLabel = intervalRemainingLabel,
+                                onSelectInterval = onSelectInterval,
+                                timerRunning = timerRunning,
+                                timerTotalMs = timerTotalMs,
+                                timerRemainingMs = timerRemainingMs,
+                                onToggleTimer = onToggleTimer,
+                                onResetTimer = onResetTimer,
+                                onSelectTimerPreset = onSelectTimerPreset,
+                                customMinutesText = customMinutesText,
+                                customSecondsText = customSecondsText,
+                                onCustomMinutesChange = { value ->
+                                    customMinutesText = value.filter { it.isDigit() }.take(2)
+                                },
+                                onCustomSecondsChange = { value ->
+                                    customSecondsText = value.filter { it.isDigit() }.take(2)
+                                },
+                                onSetCustomTimer = onSetCustomTimer,
+                                customSetEnabled = customSetEnabled,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            StopwatchTimerDial(
+                                timeLabel = if (mode == TimerMode.Stopwatch) stopwatchLabel else timerLabel,
+                                subLabel = if (mode == TimerMode.Stopwatch) "min:sec" else "countdown",
+                                accent = accent,
+                                progress = ringProgress
+                            )
+                            StopwatchTimerDetails(
+                                mode = mode,
+                                accent = accent,
+                                stopwatchRunning = stopwatchRunning,
+                                stopwatchElapsedMs = stopwatchElapsedMs,
+                                lapEnabled = lapEnabled,
+                                intervalsEnabled = intervalsEnabled,
+                                onToggleStopwatch = onToggleStopwatch,
+                                onResetStopwatch = onResetStopwatch,
+                                onToggleLap = onToggleLap,
+                                onToggleIntervals = onToggleIntervals,
+                                onLap = onLap,
+                                lapEntries = lapEntries,
+                                intervalLengthMs = intervalLengthMs,
+                                intervalRemainingLabel = intervalRemainingLabel,
+                                onSelectInterval = onSelectInterval,
+                                timerRunning = timerRunning,
+                                timerTotalMs = timerTotalMs,
+                                timerRemainingMs = timerRemainingMs,
+                                onToggleTimer = onToggleTimer,
+                                onResetTimer = onResetTimer,
+                                onSelectTimerPreset = onSelectTimerPreset,
+                                customMinutesText = customMinutesText,
+                                customSecondsText = customSecondsText,
+                                onCustomMinutesChange = { value ->
+                                    customMinutesText = value.filter { it.isDigit() }.take(2)
+                                },
+                                onCustomSecondsChange = { value ->
+                                    customSecondsText = value.filter { it.isDigit() }.take(2)
+                                },
+                                onSetCustomTimer = onSetCustomTimer,
+                                customSetEnabled = customSetEnabled,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StopwatchTimerModeToggle(
+    mode: TimerMode,
+    onModeChange: (TimerMode) -> Unit,
+    accent: Color,
+    modifier: Modifier = Modifier
+) {
+    val indicatorProgress by animateFloatAsState(
+        targetValue = if (mode == TimerMode.Timer) 1f else 0f,
+        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+        label = "stopwatchTimerToggle"
+    )
+    BoxWithConstraints(
+        modifier = modifier
+            .height(46.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
+                RoundedCornerShape(999.dp)
+            )
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(999.dp))
+    ) {
+        val inset = 4.dp
+        val indicatorWidth = (maxWidth - inset * 2) / 2
+        val indicatorHeight = maxHeight - inset * 2
+        val indicatorOffset = inset + indicatorWidth * indicatorProgress
+        Box(
+            modifier = Modifier
+                .offset(x = indicatorOffset, y = inset)
+                .width(indicatorWidth)
+                .height(indicatorHeight)
+                .background(
+                    Brush.horizontalGradient(listOf(accent, accent.copy(alpha = 0.7f))),
+                    RoundedCornerShape(999.dp)
+                )
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = inset),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TimerModeOption(
+                label = "Stopwatch",
+                selected = mode == TimerMode.Stopwatch,
+                onClick = { onModeChange(TimerMode.Stopwatch) },
+                modifier = Modifier.weight(1f)
+            )
+            TimerModeOption(
+                label = "Timer",
+                selected = mode == TimerMode.Timer,
+                onClick = { onModeChange(TimerMode.Timer) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimerModeOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun StopwatchTimerDial(
+    timeLabel: String,
+    subLabel: String,
+    accent: Color,
+    progress: Float,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier.size(104.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val stroke = 8.dp.toPx()
+            drawCircle(
+                color = accent.copy(alpha = 0.18f),
+                style = Stroke(width = stroke)
+            )
+            drawArc(
+                color = accent,
+                startAngle = -90f,
+                sweepAngle = progress * 360f,
+                useCenter = false,
+                style = Stroke(width = stroke, cap = StrokeCap.Round)
+            )
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = timeLabel,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = subLabel,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun StopwatchTimerDetails(
+    mode: TimerMode,
+    accent: Color,
+    stopwatchRunning: Boolean,
+    stopwatchElapsedMs: Long,
+    lapEnabled: Boolean,
+    intervalsEnabled: Boolean,
+    onToggleStopwatch: () -> Unit,
+    onResetStopwatch: () -> Unit,
+    onToggleLap: () -> Unit,
+    onToggleIntervals: () -> Unit,
+    onLap: () -> Unit,
+    lapEntries: List<LapEntry>,
+    intervalLengthMs: Long,
+    intervalRemainingLabel: String,
+    onSelectInterval: (Long) -> Unit,
+    timerRunning: Boolean,
+    timerTotalMs: Long,
+    timerRemainingMs: Long,
+    onToggleTimer: () -> Unit,
+    onResetTimer: () -> Unit,
+    onSelectTimerPreset: (Long) -> Unit,
+    customMinutesText: String,
+    customSecondsText: String,
+    onCustomMinutesChange: (String) -> Unit,
+    onCustomSecondsChange: (String) -> Unit,
+    onSetCustomTimer: () -> Unit,
+    customSetEnabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier) {
+        AnimatedVisibility(
+            visible = mode == TimerMode.Stopwatch,
+            enter = fadeIn(animationSpec = tween(180)) + scaleIn(
+                animationSpec = tween(220),
+                initialScale = 0.98f
+            ),
+            exit = fadeOut(animationSpec = tween(160)) + scaleOut(
+                animationSpec = tween(160),
+                targetScale = 0.98f
+            )
+        ) {
+            StopwatchModeDetails(
+                accent = accent,
+                isRunning = stopwatchRunning,
+                elapsedMs = stopwatchElapsedMs,
+                lapEnabled = lapEnabled,
+                intervalsEnabled = intervalsEnabled,
+                lapEntries = lapEntries,
+                intervalLengthMs = intervalLengthMs,
+                intervalRemainingLabel = intervalRemainingLabel,
+                onToggleRunning = onToggleStopwatch,
+                onReset = onResetStopwatch,
+                onToggleLap = onToggleLap,
+                onToggleIntervals = onToggleIntervals,
+                onLap = onLap,
+                onSelectInterval = onSelectInterval
+            )
+        }
+        AnimatedVisibility(
+            visible = mode == TimerMode.Timer,
+            enter = fadeIn(animationSpec = tween(180)) + scaleIn(
+                animationSpec = tween(220),
+                initialScale = 0.98f
+            ),
+            exit = fadeOut(animationSpec = tween(160)) + scaleOut(
+                animationSpec = tween(160),
+                targetScale = 0.98f
+            )
+        ) {
+            TimerModeDetails(
+                accent = accent,
+                isRunning = timerRunning,
+                totalMs = timerTotalMs,
+                remainingMs = timerRemainingMs,
+                onToggleRunning = onToggleTimer,
+                onReset = onResetTimer,
+                onSelectPreset = onSelectTimerPreset,
+                customMinutesText = customMinutesText,
+                customSecondsText = customSecondsText,
+                onCustomMinutesChange = onCustomMinutesChange,
+                onCustomSecondsChange = onCustomSecondsChange,
+                onSetCustomTimer = onSetCustomTimer,
+                customSetEnabled = customSetEnabled
+            )
+        }
+    }
+}
+
+@Composable
+private fun StopwatchModeDetails(
+    accent: Color,
+    isRunning: Boolean,
+    elapsedMs: Long,
+    lapEnabled: Boolean,
+    intervalsEnabled: Boolean,
+    lapEntries: List<LapEntry>,
+    intervalLengthMs: Long,
+    intervalRemainingLabel: String,
+    onToggleRunning: () -> Unit,
+    onReset: () -> Unit,
+    onToggleLap: () -> Unit,
+    onToggleIntervals: () -> Unit,
+    onLap: () -> Unit,
+    onSelectInterval: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val actionLabel = when {
+        isRunning -> "Pause"
+        elapsedMs > 0L -> "Resume"
+        else -> "Start"
+    }
+    val actionIcon = if (isRunning) Icons.Rounded.Pause else Icons.Rounded.PlayArrow
+    val intervalOptions = listOf(30_000L to "30s", 60_000L to "60s", 90_000L to "90s")
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Stopwatch",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Track intervals and log quick laps.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StopwatchTimerChip(
+                label = "Lap mode",
+                accent = accent,
+                selected = lapEnabled,
+                onClick = onToggleLap
+            )
+            StopwatchTimerChip(
+                label = "Intervals",
+                accent = accent,
+                selected = intervalsEnabled,
+                onClick = onToggleIntervals
+            )
+        }
+        if (intervalsEnabled) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                intervalOptions.forEach { (intervalMs, label) ->
+                    StopwatchTimerChip(
+                        label = label,
+                        accent = accent,
+                        selected = intervalLengthMs == intervalMs,
+                        onClick = { onSelectInterval(intervalMs) }
+                    )
+                }
+            }
+            Text(
+                text = "Next interval in $intervalRemainingLabel",
+                style = MaterialTheme.typography.labelSmall,
+                color = accent
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilledTonalButton(
+                onClick = onToggleRunning,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = accent.copy(alpha = 0.16f),
+                    contentColor = accent
+                ),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Icon(
+                    imageVector = actionIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "$actionLabel Stopwatch",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (lapEnabled) {
+                TextButton(
+                    onClick = onLap,
+                    enabled = isRunning,
+                    colors = ButtonDefaults.textButtonColors(contentColor = accent)
+                ) {
+                    Text("Lap")
+                }
+            }
+            if (elapsedMs > 0L) {
+                TextButton(
+                    onClick = onReset,
+                    colors = ButtonDefaults.textButtonColors(contentColor = accent)
+                ) {
+                    Text("Reset")
+                }
+            }
+        }
+        if (lapEntries.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = "Recent laps",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                lapEntries.take(3).forEach { entry ->
+                    StopwatchLapRow(entry = entry, accent = accent)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimerModeDetails(
+    accent: Color,
+    isRunning: Boolean,
+    totalMs: Long,
+    remainingMs: Long,
+    onToggleRunning: () -> Unit,
+    onReset: () -> Unit,
+    onSelectPreset: (Long) -> Unit,
+    customMinutesText: String,
+    customSecondsText: String,
+    onCustomMinutesChange: (String) -> Unit,
+    onCustomSecondsChange: (String) -> Unit,
+    onSetCustomTimer: () -> Unit,
+    customSetEnabled: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val actionLabel = when {
+        isRunning -> "Pause"
+        remainingMs < totalMs -> "Resume"
+        else -> "Start"
+    }
+    val actionIcon = if (isRunning) Icons.Rounded.Pause else Icons.Rounded.Timer
+    val presets = listOf(3 * 60 * 1000L to "03:00", 5 * 60 * 1000L to "05:00")
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Timer",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = "Set a focused countdown for sets or recovery.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            presets.forEach { (presetMs, label) ->
+                StopwatchTimerChip(
+                    label = label,
+                    accent = accent,
+                    selected = totalMs == presetMs,
+                    onClick = { onSelectPreset(presetMs) }
+                )
+            }
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = customMinutesText,
+                onValueChange = onCustomMinutesChange,
+                label = { Text("Min") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.width(84.dp)
+            )
+            Text(
+                text = ":",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = customSecondsText,
+                onValueChange = onCustomSecondsChange,
+                label = { Text("Sec") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.width(84.dp)
+            )
+            FilledTonalButton(
+                onClick = onSetCustomTimer,
+                enabled = customSetEnabled,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = accent.copy(alpha = 0.16f),
+                    contentColor = accent
+                ),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text("Set")
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilledTonalButton(
+                onClick = onToggleRunning,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = accent.copy(alpha = 0.16f),
+                    contentColor = accent
+                ),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Icon(
+                    imageVector = actionIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "$actionLabel Timer",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (remainingMs != totalMs) {
+                TextButton(
+                    onClick = onReset,
+                    colors = ButtonDefaults.textButtonColors(contentColor = accent)
+                ) {
+                    Text("Reset")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StopwatchLapRow(entry: LapEntry, accent: Color, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = entry.label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (entry.isAuto) accent else MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "Total ${formatMinutesSeconds(entry.totalMs)}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = formatMinutesSeconds(entry.lapMs),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun StopwatchTimerChip(
+    label: String,
+    accent: Color,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AssistChip(
+        onClick = onClick,
+        label = { Text(label) },
+        colors = AssistChipDefaults.assistChipColors(
+            containerColor = if (selected) accent else accent.copy(alpha = 0.14f),
+            labelColor = if (selected) Color.White else accent
+        ),
+        modifier = modifier
+    )
+}
+
+private fun formatMinutesSeconds(totalMs: Long): String {
+    val totalSeconds = (totalMs / 1000L).coerceAtLeast(0L)
+    val minutes = totalSeconds / 60L
+    val seconds = totalSeconds % 60L
+    return "%02d:%02d".format(minutes, seconds)
 }
 
 @Composable
