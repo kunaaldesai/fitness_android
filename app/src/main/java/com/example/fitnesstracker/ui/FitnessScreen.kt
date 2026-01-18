@@ -2,9 +2,19 @@
 
 package com.example.fitnesstracker.ui
 
+import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -16,6 +26,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +47,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,9 +62,11 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsRun
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.MoreVert
@@ -66,6 +80,7 @@ import androidx.compose.material.icons.rounded.SelfImprovement
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -93,11 +108,13 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -112,15 +129,19 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.UUID
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitnesstracker.data.remote.Exercise
+import com.example.fitnesstracker.data.remote.Workout
 import com.example.fitnesstracker.data.remote.WorkoutItem
 import com.example.fitnesstracker.data.remote.WorkoutPlan
 import com.example.fitnesstracker.data.remote.WorkoutSet
@@ -212,7 +233,8 @@ private data class ActivityItem(
     val primary: String,
     val secondary: String,
     val icon: ImageVector,
-    val accent: Color
+    val accent: Color,
+    val workoutId: String? = null
 )
 
 private data class NavItem(
@@ -244,7 +266,9 @@ sealed interface FitnessDestination {
     data object Explore : FitnessDestination
     data object CreateWorkout : FitnessDestination
     data object CreateWorkoutPlan : FitnessDestination
+    data class StartWorkout(val planId: String) : FitnessDestination
     data class WorkoutDetail(val id: String) : FitnessDestination
+    data object WorkoutHistory : FitnessDestination
     data object CreateExercise : FitnessDestination
 }
 
@@ -273,6 +297,14 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
         state.recentlyCreatedWorkoutId?.let { id ->
             destination = FitnessDestination.WorkoutDetail(id)
             viewModel.consumeRecentlyCreatedWorkout()
+        }
+    }
+
+    LaunchedEffect(state.recentlyCompletedWorkoutId) {
+        state.recentlyCompletedWorkoutId?.let { id ->
+            destination = FitnessDestination.WorkoutDetail(id)
+            viewModel.consumeRecentlyCompletedWorkout()
+            viewModel.clearActiveWorkout()
         }
     }
 
@@ -308,12 +340,19 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
             FitnessDestination.Home -> HomeScreen(
                 state = state,
                 onOpenCreateWorkout = { destination = FitnessDestination.CreateWorkout },
+                onStartWorkoutPlan = { plan -> destination = FitnessDestination.StartWorkout(plan.id) },
+                onOpenHistory = { destination = FitnessDestination.WorkoutHistory },
+                onOpenWorkout = { workoutId ->
+                    viewModel.selectWorkout(workoutId)
+                    destination = FitnessDestination.WorkoutDetail(workoutId)
+                },
                 modifier = Modifier.padding(padding)
             )
 
             FitnessDestination.Explore -> ExploreScreen(
                 state = state,
-                onStartWorkout = { destination = FitnessDestination.CreateWorkout },
+                onStartWorkoutPlan = { plan -> destination = FitnessDestination.StartWorkout(plan.id) },
+                onCreateWorkoutPlan = { destination = FitnessDestination.CreateWorkoutPlan },
                 modifier = Modifier.padding(padding)
             )
 
@@ -339,14 +378,34 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
                 modifier = Modifier.padding(padding)
             )
 
+            is FitnessDestination.StartWorkout -> StartWorkoutScreen(
+                planId = screen.planId,
+                state = state,
+                onBack = {
+                    viewModel.clearActiveWorkout()
+                    destination = FitnessDestination.Home
+                },
+                onStartWorkout = viewModel::startWorkoutFromPlan,
+                onSaveWorkout = viewModel::logWorkoutSets,
+                modifier = Modifier.padding(padding)
+            )
+
             is FitnessDestination.WorkoutDetail -> WorkoutDetailScreen(
                 workoutId = screen.id,
                 state = state,
                 onBack = { destination = FitnessDestination.Home },
-                onAddItem = viewModel::addItemToWorkout,
-                onAddSet = viewModel::addSet,
-                onCreateExercise = { destination = FitnessDestination.CreateExercise },
+                onSaveEdits = viewModel::updateWorkoutLog,
                 onRefresh = { viewModel.selectWorkout(screen.id) },
+                modifier = Modifier.padding(padding)
+            )
+
+            FitnessDestination.WorkoutHistory -> WorkoutHistoryScreen(
+                state = state,
+                onBack = { destination = FitnessDestination.Home },
+                onSelectWorkout = { workoutId ->
+                    viewModel.selectWorkout(workoutId)
+                    destination = FitnessDestination.WorkoutDetail(workoutId)
+                },
                 modifier = Modifier.padding(padding)
             )
 
@@ -367,11 +426,17 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
 private fun HomeScreen(
     state: FitnessUiState,
     onOpenCreateWorkout: () -> Unit,
+    onStartWorkoutPlan: (WorkoutPlan) -> Unit,
+    onOpenHistory: () -> Unit,
+    onOpenWorkout: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val displayName = state.user?.firstName?.takeIf { it.isNotBlank() } ?: "Kunaal"
-    val streakCount = remember(state.workouts) {
-        if (state.workouts.isNotEmpty()) state.workouts.size.coerceAtMost(12) else 12
+    val workoutsWithSets = remember(state.workouts) {
+        state.workouts.filter { workout -> workout.items.sumOf { it.sets.size } > 0 }
+    }
+    val streakCount = remember(workoutsWithSets) {
+        if (workoutsWithSets.isNotEmpty()) workoutsWithSets.size.coerceAtMost(12) else 12
     }
     val workoutPlans = state.workoutPlans
     val hasWorkoutPlans = workoutPlans.isNotEmpty()
@@ -384,11 +449,11 @@ private fun HomeScreen(
         ProgressDay("Sat", "10 min", 0.2f),
         ProgressDay("Sun", "Rest", 0.1f)
     )
-    val activityItems = remember(state.workouts) {
-        if (state.workouts.isNotEmpty()) {
+    val activityItems = remember(workoutsWithSets) {
+        if (workoutsWithSets.isNotEmpty()) {
             val icons = listOf(Icons.Rounded.DirectionsRun, Icons.Rounded.SelfImprovement, Icons.Rounded.Pool)
             val accents = listOf(Orange500, Purple500, Blue500)
-            state.workouts.sortedByDescending { it.date ?: "" }
+            workoutsWithSets.sortedByDescending { it.date ?: "" }
                 .take(3)
                 .mapIndexed { index, workout ->
                     ActivityItem(
@@ -397,7 +462,8 @@ private fun HomeScreen(
                         primary = "${workout.items.size} exercises",
                         secondary = "${workout.items.sumOf { it.sets.size }} sets",
                         icon = icons[index % icons.size],
-                        accent = accents[index % accents.size]
+                        accent = accents[index % accents.size],
+                        workoutId = workout.id
                     )
                 }
         } else {
@@ -492,7 +558,8 @@ private fun HomeScreen(
                     StaggeredItem(delayMillis = 200) {
                         TodayWorkoutSection(
                             workoutPlans = workoutPlans,
-                            onStartWorkout = onOpenCreateWorkout,
+                            onStartWorkoutPlan = onStartWorkoutPlan,
+                            onCreateWorkout = onOpenCreateWorkout,
                             ctaLabel = if (hasWorkoutPlans) "Start Workout" else "Create Workout"
                         )
                     }
@@ -509,7 +576,11 @@ private fun HomeScreen(
                 }
                 item {
                     StaggeredItem(delayMillis = 380) {
-                        RecentActivitySection(activities = activityItems)
+                        RecentActivitySection(
+                            activities = activityItems,
+                            onSeeAll = onOpenHistory,
+                            onSelectWorkout = onOpenWorkout
+                        )
                     }
                 }
                 if (state.isLoading) {
@@ -527,7 +598,8 @@ private fun HomeScreen(
 @Composable
 private fun ExploreScreen(
     state: FitnessUiState,
-    onStartWorkout: () -> Unit,
+    onStartWorkoutPlan: (WorkoutPlan) -> Unit,
+    onCreateWorkoutPlan: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val workoutPlans = state.workoutPlans
@@ -604,8 +676,8 @@ private fun ExploreScreen(
                                 badge = "Workout Plan",
                                 description = "Create a plan to see it here."
                             ),
-                            onStartWorkout = onStartWorkout,
-                            ctaLabel = "Create Workout",
+                            onStartWorkout = onCreateWorkoutPlan,
+                            ctaLabel = "Create Plan",
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -615,7 +687,7 @@ private fun ExploreScreen(
                     StaggeredItem(delayMillis = 120) {
                         WorkoutPlanCard(
                             highlight = plan.toHighlight(),
-                            onStartWorkout = onStartWorkout,
+                            onStartWorkout = { onStartWorkoutPlan(plan) },
                             ctaLabel = "Start Workout",
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -889,7 +961,8 @@ private fun StatSummaryCard(summary: StatSummary, modifier: Modifier = Modifier)
 @Composable
 private fun TodayWorkoutSection(
     workoutPlans: List<WorkoutPlan>,
-    onStartWorkout: () -> Unit,
+    onStartWorkoutPlan: (WorkoutPlan) -> Unit,
+    onCreateWorkout: () -> Unit,
     ctaLabel: String,
     modifier: Modifier = Modifier
 ) {
@@ -920,7 +993,7 @@ private fun TodayWorkoutSection(
                     setCount = "24 sets",
                     badge = "Workout Plan"
                 ),
-                onStartWorkout = onStartWorkout,
+                onStartWorkout = onCreateWorkout,
                 ctaLabel = ctaLabel,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -934,7 +1007,7 @@ private fun TodayWorkoutSection(
             ) { page ->
                 WorkoutPlanCard(
                     highlight = workoutPlans[page].toHighlight(),
-                    onStartWorkout = onStartWorkout,
+                    onStartWorkout = { onStartWorkoutPlan(workoutPlans[page]) },
                     ctaLabel = ctaLabel,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -2100,7 +2173,12 @@ private fun ProgressBarChart(days: List<ProgressDay>, modifier: Modifier = Modif
 }
 
 @Composable
-private fun RecentActivitySection(activities: List<ActivityItem>, modifier: Modifier = Modifier) {
+private fun RecentActivitySection(
+    activities: List<ActivityItem>,
+    onSeeAll: () -> Unit,
+    onSelectWorkout: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(modifier = modifier) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2115,22 +2193,37 @@ private fun RecentActivitySection(activities: List<ActivityItem>, modifier: Modi
             Text(
                 "See All",
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onSeeAll() }
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             activities.forEach { activity ->
-                RecentActivityRow(activity = activity)
+                RecentActivityRow(
+                    activity = activity,
+                    onClick = activity.workoutId?.let { { onSelectWorkout(it) } }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RecentActivityRow(activity: ActivityItem, modifier: Modifier = Modifier) {
+private fun RecentActivityRow(
+    activity: ActivityItem,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    val cardModifier = if (onClick != null) {
+        modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    } else {
+        modifier.fillMaxWidth()
+    }
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = cardModifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
@@ -3337,27 +3430,750 @@ private fun WorkoutPlanSuccessOverlay(
     }
 }
 
+private class SetInputState(
+    val id: String = UUID.randomUUID().toString(),
+    reps: String = "",
+    weight: String = "",
+    rir: String = ""
+) {
+    var reps by mutableStateOf(reps)
+    var weight by mutableStateOf(weight)
+    var rir by mutableStateOf(rir)
+    var repsError by mutableStateOf(false)
+
+    fun hasAnyInput(): Boolean = reps.isNotBlank() || weight.isNotBlank() || rir.isNotBlank()
+}
+
+private class SetEditState(
+    val setId: String? = null,
+    reps: String = "",
+    weight: String = "",
+    rir: String = ""
+) {
+    var reps by mutableStateOf(reps)
+    var weight by mutableStateOf(weight)
+    var rir by mutableStateOf(rir)
+    var repsError by mutableStateOf(false)
+
+    fun hasAnyInput(): Boolean = reps.isNotBlank() || weight.isNotBlank() || rir.isNotBlank()
+}
+
 @Composable
-private fun WorkoutDetailScreen(
-    workoutId: String,
+private fun StartWorkoutScreen(
+    planId: String,
     state: FitnessUiState,
     onBack: () -> Unit,
-    onAddItem: (workoutId: String, exerciseId: String, notes: String?, order: Int?) -> Unit,
-    onAddSet: (workoutId: String, itemId: String, reps: Int, weight: Double?, rir: Double?, rpe: Double?, notes: String?, isPr: Boolean) -> Unit,
-    onCreateExercise: () -> Unit,
-    onRefresh: () -> Unit,
+    onStartWorkout: (String) -> Unit,
+    onSaveWorkout: (String, List<WorkoutSetEntry>) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val workout = remember(state.selectedWorkout, state.workouts, workoutId) {
-        state.selectedWorkout?.takeIf { it.id == workoutId }
-            ?: state.workouts.firstOrNull { it.id == workoutId }
+    val plan = remember(state.workoutPlans, planId) { state.workoutPlans.firstOrNull { it.id == planId } }
+    val activeWorkoutId = state.activeWorkoutId
+    val workout = remember(state.selectedWorkout, activeWorkoutId) {
+        state.selectedWorkout?.takeIf { it.id == activeWorkoutId }
     }
-
-    LaunchedEffect(workoutId, state.selectedWorkout?.id) {
-        if (state.selectedWorkout?.id != workoutId) {
-            onRefresh()
+    val setInputsByItem = remember(activeWorkoutId) { mutableStateMapOf<String, SnapshotStateList<SetInputState>>() }
+    var localError by remember(activeWorkoutId) { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val vibrator = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
         }
     }
+
+    LaunchedEffect(planId, state.activeWorkoutPlanId, activeWorkoutId) {
+        if (state.activeWorkoutPlanId != planId || activeWorkoutId == null) {
+            onStartWorkout(planId)
+        }
+    }
+
+    LaunchedEffect(workout?.items) {
+        workout?.items?.forEach { item ->
+            if (!setInputsByItem.containsKey(item.id)) {
+                setInputsByItem[item.id] = mutableStateListOf(SetInputState())
+            }
+        }
+    }
+
+    val forestBg = Color(0xFF0A140F)
+    val forestGlow = Color(0xFF153223)
+    val forestCard = Color(0xB20F1C16)
+    val vibrantGreen = Color(0xFF22C55E)
+    val vibrantGreenDark = Color(0xFF16A34A)
+    val textHigh = Color(0xFFF0FDF4)
+    val textDim = Color(0xFF86A694)
+    val cardShape = RoundedCornerShape(28.dp)
+    val fieldShape = RoundedCornerShape(20.dp)
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = textHigh,
+        unfocusedTextColor = textHigh,
+        focusedContainerColor = Color(0x66000000),
+        unfocusedContainerColor = Color(0x66000000),
+        focusedBorderColor = vibrantGreen,
+        unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
+        cursorColor = vibrantGreen,
+        focusedPlaceholderColor = textHigh.copy(alpha = 0.2f),
+        unfocusedPlaceholderColor = textHigh.copy(alpha = 0.2f),
+        errorBorderColor = MaterialTheme.colorScheme.error,
+        errorContainerColor = Color(0x66000000)
+    )
+    val livePulse = rememberInfiniteTransition(label = "startWorkoutLivePulse")
+    val livePulseAlpha by livePulse.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "startWorkoutLivePulseAlpha"
+    )
+    val triggerVibration = {
+        vibrator?.let { device ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                device.vibrate(VibrationEffect.createWaveform(longArrayOf(0L, 120L, 80L, 120L, 80L, 120L), -1))
+            } else {
+                @Suppress("DEPRECATION")
+                device.vibrate(longArrayOf(0L, 120L, 80L, 120L, 80L, 120L), -1)
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(forestBg)
+    ) {
+        val density = LocalDensity.current
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(forestGlow, forestBg),
+                        center = Offset(with(density) { 200.dp.toPx() }, with(density) { (-40).dp.toPx() }),
+                        radius = with(density) { 420.dp.toPx() }
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(vibrantGreen.copy(alpha = 0.12f), Color.Transparent),
+                        center = Offset(with(density) { 380.dp.toPx() }, with(density) { 760.dp.toPx() }),
+                        radius = with(density) { 520.dp.toPx() }
+                    )
+                )
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 140.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = textHigh)
+                    }
+                    Column {
+                        Text(
+                            text = "Active Workout",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = textHigh
+                        )
+                        Text(
+                            text = plan?.name ?: "Workout Session",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textDim
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(vibrantGreen.copy(alpha = livePulseAlpha), CircleShape)
+                        )
+                        Text(
+                            text = "Live",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                            color = vibrantGreen
+                        )
+                    }
+                }
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(32.dp),
+                    colors = CardDefaults.cardColors(containerColor = forestCard),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                imageVector = Icons.Rounded.Info,
+                                contentDescription = null,
+                                tint = vibrantGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Session Overview".uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp,
+                                color = vibrantGreen
+                            )
+                        }
+                        Text(
+                            text = plan?.description?.takeIf { it.isNotBlank() }
+                                ?: "Maintain high intensity and track your RIR carefully.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textDim
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AssistChip(
+                                onClick = {},
+                                enabled = false,
+                                label = { Text("${workout?.items?.size ?: 0} exercises") },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = Color.White.copy(alpha = 0.06f),
+                                    labelColor = textHigh
+                                )
+                            )
+                            plan?.type?.takeIf { it.isNotBlank() }?.let { type ->
+                                AssistChip(
+                                    onClick = {},
+                                    enabled = false,
+                                    label = { Text(type) },
+                                    colors = AssistChipDefaults.assistChipColors(
+                                        containerColor = Color.White.copy(alpha = 0.06f),
+                                        labelColor = textHigh
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (workout == null) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = cardShape,
+                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(color = vibrantGreen)
+                            Text(
+                                text = if (state.isActionRunning) "Setting up your session..." else "Loading workout details...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = textHigh
+                            )
+                            if (!state.isActionRunning) {
+                                TextButton(onClick = { onStartWorkout(planId) }) {
+                                    Text("Try again", color = vibrantGreen)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                itemsIndexed(workout.items.sortedBy { it.order ?: 0 }, key = { _, item -> item.id }) { index, item ->
+                    val isPrimary = index == 0
+                    val setInputs = setInputsByItem[item.id]
+                    val defaultTimerMs = 3 * 60_000L
+                    var timerRunning by rememberSaveable(item.id) { mutableStateOf(false) }
+                    var timerRemainingMs by rememberSaveable(item.id) { mutableStateOf(0L) }
+                    var timerDurationMs by rememberSaveable(item.id) { mutableStateOf(defaultTimerMs) }
+                    var showTimerDialog by rememberSaveable(item.id) { mutableStateOf(false) }
+                    val timerDisplayMs = if (timerRunning || timerRemainingMs > 0L) timerRemainingMs else timerDurationMs
+                    val timerLabel = formatMinutesSeconds(timerDisplayMs)
+
+                    LaunchedEffect(timerRunning) {
+                        if (!timerRunning) return@LaunchedEffect
+                        var lastTick = System.currentTimeMillis()
+                        while (timerRunning && timerRemainingMs > 0L) {
+                            delay(100L)
+                            val now = System.currentTimeMillis()
+                            val elapsed = now - lastTick
+                            lastTick = now
+                            timerRemainingMs = (timerRemainingMs - elapsed).coerceAtLeast(0L)
+                        }
+                        if (timerRunning && timerRemainingMs == 0L) {
+                            timerRunning = false
+                            triggerVibration()
+                        }
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(30.dp),
+                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Box {
+                            Box(
+                                modifier = Modifier
+                                    .width(6.dp)
+                                    .fillMaxHeight()
+                                    .background(if (isPrimary) vibrantGreen else Color.White.copy(alpha = 0.12f))
+                                    .align(Alignment.CenterStart)
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 22.dp, end = 18.dp, top = 18.dp, bottom = 18.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                val fullTitle = item.name ?: "Exercise"
+                                var titleRevealToken by remember(item.id) { mutableStateOf(0) }
+                                LaunchedEffect(titleRevealToken) {
+                                    if (titleRevealToken == 0) return@LaunchedEffect
+                                    delay(1400)
+                                    titleRevealToken = 0
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 12.dp)
+                                    ) {
+                                        Text(
+                                            text = fullTitle,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = textHigh,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { titleRevealToken += 1 }
+                                        )
+                                        AnimatedVisibility(
+                                            visible = titleRevealToken > 0,
+                                            enter = fadeIn(animationSpec = tween(150)),
+                                            exit = fadeOut(animationSpec = tween(150))
+                                        ) {
+                                            Text(
+                                                text = fullTitle,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = textDim
+                                            )
+                                        }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        val timerAccent = if (timerRunning) vibrantGreen else textHigh.copy(alpha = 0.8f)
+                                        val timerSurface = if (timerRunning) vibrantGreen.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.06f)
+                                        val timerBorder = if (timerRunning) vibrantGreen.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f)
+                                        Surface(
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = timerSurface,
+                                            border = BorderStroke(1.dp, timerBorder),
+                                            modifier = Modifier.combinedClickable(
+                                                enabled = !state.isActionRunning,
+                                                onClick = {
+                                                    if (timerRunning) {
+                                                        timerRunning = false
+                                                        timerRemainingMs = 0L
+                                                    } else {
+                                                        timerRemainingMs = timerDurationMs
+                                                        timerRunning = true
+                                                    }
+                                                },
+                                                onLongClick = { showTimerDialog = true }
+                                            )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Timer,
+                                                    contentDescription = null,
+                                                    tint = timerAccent,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Text(
+                                                    text = timerLabel,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = timerAccent
+                                                )
+                                            }
+                                        }
+                                        val setTotal = setInputs?.size ?: 0
+                                        if (setTotal > 0) {
+                                            Surface(
+                                                shape = RoundedCornerShape(20.dp),
+                                                color = vibrantGreen.copy(alpha = 0.12f),
+                                                border = BorderStroke(1.dp, vibrantGreen.copy(alpha = 0.4f))
+                                            ) {
+                                                Text(
+                                                    text = "Set 1/$setTotal",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = vibrantGreen,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (setInputs == null) {
+                                    Text(
+                                        text = "Preparing sets...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = textDim
+                                    )
+                                } else {
+                                    setInputs.forEachIndexed { setIndex, entry ->
+                                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "Set ${setIndex + 1}".uppercase(),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Black,
+                                                    letterSpacing = 2.sp,
+                                                    color = if (isPrimary) vibrantGreen else textDim
+                                                )
+                                                if (setInputs.size > 1) {
+                                                    IconButton(onClick = { setInputs.remove(entry) }) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.Close,
+                                                            contentDescription = "Remove set",
+                                                            tint = textDim
+                                                        )
+                                                    }
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.MoreVert,
+                                                        contentDescription = null,
+                                                        tint = textDim
+                                                    )
+                                                }
+                                            }
+                                            val textStyle = MaterialTheme.typography.titleMedium.copy(
+                                                color = textHigh,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Weight".uppercase(),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 1.5.sp,
+                                                        color = textDim
+                                                    )
+                                                    OutlinedTextField(
+                                                        value = entry.weight,
+                                                        onValueChange = { entry.weight = it },
+                                                        placeholder = { Text("0") },
+                                                        singleLine = true,
+                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                                        shape = fieldShape,
+                                                        colors = textFieldColors,
+                                                        textStyle = textStyle
+                                                    )
+                                                }
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Reps".uppercase(),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 1.5.sp,
+                                                        color = textDim
+                                                    )
+                                                    OutlinedTextField(
+                                                        value = entry.reps,
+                                                        onValueChange = {
+                                                            entry.reps = it
+                                                            entry.repsError = false
+                                                        },
+                                                        placeholder = { Text("0") },
+                                                        singleLine = true,
+                                                        isError = entry.repsError,
+                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                                        shape = fieldShape,
+                                                        colors = textFieldColors,
+                                                        textStyle = textStyle
+                                                    )
+                                                }
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "RIR".uppercase(),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 1.5.sp,
+                                                        color = textDim
+                                                    )
+                                                    OutlinedTextField(
+                                                        value = entry.rir,
+                                                        onValueChange = { entry.rir = it },
+                                                        placeholder = { Text("0") },
+                                                        singleLine = true,
+                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                                        shape = fieldShape,
+                                                        colors = textFieldColors,
+                                                        textStyle = textStyle
+                                                    )
+                                                }
+                                            }
+                                            if (setIndex < setInputs.lastIndex) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(1.dp)
+                                                        .background(Color.White.copy(alpha = 0.06f))
+                                                )
+                                            }
+                                        }
+                                    }
+                                    val addSetColor = if (isPrimary) vibrantGreen else textDim
+                                    val addSetBg = if (isPrimary) vibrantGreen.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.05f)
+                                    val addSetBorder = if (isPrimary) vibrantGreen.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.12f)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(addSetBg)
+                                            .border(1.dp, addSetBorder, RoundedCornerShape(20.dp))
+                                            .clickable(enabled = !state.isActionRunning) { setInputs.add(SetInputState()) }
+                                            .padding(vertical = 12.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(Icons.Rounded.Add, contentDescription = null, tint = addSetColor)
+                                            Text(
+                                                text = "Add Set",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = addSetColor
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (showTimerDialog) {
+                        var minutesText by rememberSaveable(item.id) {
+                            mutableStateOf((timerDurationMs / 60_000L).toString().padStart(2, '0'))
+                        }
+                        var secondsText by rememberSaveable(item.id) {
+                            mutableStateOf(((timerDurationMs / 1000L) % 60L).toString().padStart(2, '0'))
+                        }
+                        AlertDialog(
+                            onDismissRequest = { showTimerDialog = false },
+                            title = { Text("Set timer") },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        OutlinedTextField(
+                                            value = minutesText,
+                                            onValueChange = { minutesText = it.filter(Char::isDigit).take(2) },
+                                            label = { Text("Minutes") },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        OutlinedTextField(
+                                            value = secondsText,
+                                            onValueChange = { secondsText = it.filter(Char::isDigit).take(2) },
+                                            label = { Text("Seconds") },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    Text(
+                                        text = "Long-press the timer chip anytime to update it.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        val minutes = minutesText.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
+                                        val seconds = secondsText.toLongOrNull()?.coerceIn(0L, 59L) ?: 0L
+                                        timerDurationMs = (minutes * 60L + seconds) * 1000L
+                                        timerRemainingMs = 0L
+                                        timerRunning = false
+                                        showTimerDialog = false
+                                    }
+                                ) {
+                                    Text("Save")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showTimerDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(colors = listOf(Color.Transparent, forestBg.copy(alpha = 0.95f), forestBg))
+                )
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                localError?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                val buttonEnabled = workout != null && !state.isActionRunning
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(if (buttonEnabled) vibrantGreen else vibrantGreen.copy(alpha = 0.4f))
+                        .border(1.dp, vibrantGreen.copy(alpha = 0.25f), RoundedCornerShape(28.dp))
+                        .clickable(enabled = buttonEnabled) {
+                            val entries = mutableListOf<WorkoutSetEntry>()
+                            var hasError = false
+                            setInputsByItem.forEach { (itemId, inputs) ->
+                                inputs.forEach { entry ->
+                                    if (entry.hasAnyInput()) {
+                                        val reps = entry.reps.trim().toIntOrNull()
+                                        if (reps == null) {
+                                            entry.repsError = true
+                                            hasError = true
+                                        } else {
+                                            entry.repsError = false
+                                            entries.add(
+                                                WorkoutSetEntry(
+                                                    itemId = itemId,
+                                                    reps = reps,
+                                                    weight = entry.weight.toDoubleOrNull(),
+                                                    rir = entry.rir.toDoubleOrNull()
+                                                )
+                                            )
+                                        }
+                                    } else {
+                                        entry.repsError = false
+                                    }
+                                }
+                            }
+                            if (hasError) {
+                                localError = "Reps are required for each set."
+                                return@clickable
+                            }
+                            if (entries.isEmpty()) {
+                                localError = "Add at least one set to save your workout."
+                                return@clickable
+                            }
+                            localError = null
+                            onSaveWorkout(activeWorkoutId ?: return@clickable, entries)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        if (state.isActionRunning) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = forestBg,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = forestBg
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = if (state.isActionRunning) "Saving..." else "Save Workout",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = forestBg
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutHistoryScreen(
+    state: FitnessUiState,
+    onBack: () -> Unit,
+    onSelectWorkout: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val workouts = remember(state.workouts) {
+        state.workouts
+            .filter { workout -> workout.items.sumOf { it.sets.size } > 0 }
+            .sortedByDescending { it.date ?: "" }
+    }
+    val accent = Color(0xFF4DD0E1)
 
     Box(
         modifier = modifier
@@ -3365,12 +4181,249 @@ private fun WorkoutDetailScreen(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        MaterialTheme.colorScheme.surface,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                     )
                 )
             )
     ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+                    }
+                    Column {
+                        Text(
+                            "Workout History",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "${workouts.size} sessions logged",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            if (workouts.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("No workouts yet", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Start a workout to see your history here.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(workouts, key = { it.id }) { workout ->
+                    WorkoutHistoryCard(
+                        workout = workout,
+                        accent = accent,
+                        onClick = { onSelectWorkout(workout.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutHistoryCard(
+    workout: Workout,
+    accent: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val setCount = remember(workout.items) { workout.items.sumOf { it.sets.size } }
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(accent.copy(alpha = 0.18f), RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.CalendarMonth,
+                    contentDescription = null,
+                    tint = accent
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    workout.notes?.takeIf { it.isNotBlank() } ?: "Workout Session",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    workout.date ?: "Unknown date",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "${workout.items.size} exercises",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "$setCount sets",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkoutDetailScreen(
+    workoutId: String,
+    state: FitnessUiState,
+    onBack: () -> Unit,
+    onSaveEdits: (workoutId: String, updates: List<WorkoutSetUpdateEntry>, newSets: List<WorkoutSetEntry>) -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val workout = remember(state.selectedWorkout, state.workouts, workoutId) {
+        state.selectedWorkout?.takeIf { it.id == workoutId }
+            ?: state.workouts.firstOrNull { it.id == workoutId }
+    }
+    val context = LocalContext.current
+    val vibrator = remember(context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+    }
+    val triggerVibration = {
+        vibrator?.let { device ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                device.vibrate(VibrationEffect.createWaveform(longArrayOf(0L, 120L, 80L, 120L, 80L, 120L), -1))
+            } else {
+                @Suppress("DEPRECATION")
+                device.vibrate(longArrayOf(0L, 120L, 80L, 120L, 80L, 120L), -1)
+            }
+        }
+    }
+    var isEditing by rememberSaveable(workoutId) { mutableStateOf(false) }
+    val setEditsByItem = remember(workout?.id) { mutableStateMapOf<String, SnapshotStateList<SetEditState>>() }
+    var localError by remember(workout?.id) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(workoutId, state.selectedWorkout?.id) {
+        if (state.selectedWorkout?.id != workoutId) {
+            onRefresh()
+        }
+    }
+
+    LaunchedEffect(workout?.items) {
+        workout?.items?.forEach { item ->
+            if (!setEditsByItem.containsKey(item.id)) {
+                val list = mutableStateListOf<SetEditState>()
+                if (item.sets.isNotEmpty()) {
+                    item.sets.forEach { set ->
+                        list.add(
+                            SetEditState(
+                                setId = set.id,
+                                reps = set.reps?.toString() ?: "",
+                                weight = set.weight?.toString() ?: "",
+                                rir = set.rir?.toString() ?: ""
+                            )
+                        )
+                    }
+                } else {
+                    list.add(SetEditState())
+                }
+                setEditsByItem[item.id] = list
+            }
+        }
+    }
+
+    val forestBg = Color(0xFF0A140F)
+    val forestGlow = Color(0xFF153223)
+    val forestCard = Color(0xB20F1C16)
+    val vibrantGreen = Color(0xFF22C55E)
+    val textHigh = Color(0xFFF0FDF4)
+    val textDim = Color(0xFF86A694)
+    val cardShape = RoundedCornerShape(28.dp)
+    val fieldShape = RoundedCornerShape(20.dp)
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = textHigh,
+        unfocusedTextColor = textHigh,
+        focusedContainerColor = Color(0x66000000),
+        unfocusedContainerColor = Color(0x66000000),
+        focusedBorderColor = vibrantGreen,
+        unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
+        cursorColor = vibrantGreen,
+        focusedPlaceholderColor = textHigh.copy(alpha = 0.2f),
+        unfocusedPlaceholderColor = textHigh.copy(alpha = 0.2f),
+        errorBorderColor = MaterialTheme.colorScheme.error,
+        errorContainerColor = Color(0x66000000)
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(forestBg)
+    ) {
+        val density = LocalDensity.current
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(forestGlow, forestBg),
+                        center = Offset(with(density) { 200.dp.toPx() }, with(density) { (-40).dp.toPx() }),
+                        radius = with(density) { 420.dp.toPx() }
+                    )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(vibrantGreen.copy(alpha = 0.12f), Color.Transparent),
+                        center = Offset(with(density) { 380.dp.toPx() }, with(density) { 760.dp.toPx() }),
+                        radius = with(density) { 520.dp.toPx() }
+                    )
+                )
+        )
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -3383,34 +4436,51 @@ private fun WorkoutDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = textHigh)
                     }
                     Column {
-                        Text("Workout", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            text = "Active Workout",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = textHigh
+                        )
                         Text(
                             workout?.date ?: "Loading...",
-                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textDim
                         )
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    if (state.isActionRunning || state.isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 3.dp)
-                    }
-                }
-            }
-
-            workout?.notes?.takeIf { it.isNotBlank() }?.let { notes ->
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text("Notes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(notes, style = MaterialTheme.typography.bodyMedium)
+                    val detailPulse = rememberInfiniteTransition(label = "workoutDetailLivePulse")
+                    val detailPulseAlpha by detailPulse.animateFloat(
+                        initialValue = 0.4f,
+                        targetValue = 1f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 900, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "workoutDetailLivePulseAlpha"
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(vibrantGreen.copy(alpha = detailPulseAlpha), CircleShape)
+                        )
+                        Text(
+                            text = "Live",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                            color = vibrantGreen
+                        )
+                        IconButton(onClick = { isEditing = !isEditing }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = "Toggle edit",
+                                tint = if (isEditing) vibrantGreen else textHigh
+                            )
                         }
                     }
                 }
@@ -3419,32 +4489,55 @@ private fun WorkoutDetailScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = cardShape,
+                    colors = CardDefaults.cardColors(containerColor = forestCard),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Attach exercise", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        if (state.exercises.isEmpty()) {
-                            Text(
-                                "Save an exercise first.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                imageVector = Icons.Rounded.Info,
+                                contentDescription = null,
+                                tint = vibrantGreen,
+                                modifier = Modifier.size(16.dp)
                             )
-                            FilledTonalButton(onClick = onCreateExercise) {
-                                Icon(Icons.Rounded.FitnessCenter, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Create exercise")
-                            }
-                        } else if (workout != null) {
-                            AddWorkoutItemForm(
-                                workoutId = workout.id,
-                                exercises = state.exercises,
-                                onAddItem = onAddItem,
-                                isActionRunning = state.isActionRunning
+                            Text(
+                                text = "Session Overview".uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 2.sp,
+                                color = vibrantGreen
+                            )
+                        }
+                        Text(
+                            text = workout?.notes?.takeIf { it.isNotBlank() }
+                                ?: "Review your session details. Tap the pencil to edit.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = textDim
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AssistChip(
+                                onClick = {},
+                                enabled = false,
+                                label = { Text("${workout?.items?.size ?: 0} exercises") },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = Color.White.copy(alpha = 0.06f),
+                                    labelColor = textHigh
+                                )
+                            )
+                            AssistChip(
+                                onClick = {},
+                                enabled = false,
+                                label = { Text("Logged") },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = Color.White.copy(alpha = 0.06f),
+                                    labelColor = textHigh
+                                )
                             )
                         }
                     }
@@ -3453,41 +4546,513 @@ private fun WorkoutDetailScreen(
 
             if (workout == null) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = cardShape,
+                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            CircularProgressIndicator()
-                            Text("Loading workout details...")
+                            CircularProgressIndicator(color = vibrantGreen)
+                            Text("Loading workout details...", color = textHigh)
                         }
                     }
                 }
             } else if (workout.items.isEmpty()) {
                 item {
-                    Card(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = cardShape,
+                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("No exercises yet", style = MaterialTheme.typography.titleMedium)
+                            Text("No exercises yet", style = MaterialTheme.typography.titleMedium, color = textHigh)
                             Text(
                                 "Add an exercise above to start logging sets.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = textDim
                             )
                         }
                     }
                 }
             } else {
-                items(workout.items.sortedBy { it.order ?: 0 }, key = { it.id }) { item ->
-                    WorkoutItemCard(
-                        workoutId = workout.id,
-                        item = item,
-                        onAddSet = onAddSet,
-                        isActionRunning = state.isActionRunning
+                itemsIndexed(workout.items.sortedBy { it.order ?: 0 }, key = { _, item -> item.id }) { index, item ->
+                    val isPrimary = index == 0
+                    val setEdits = setEditsByItem[item.id]
+                    val defaultTimerMs = 3 * 60_000L
+                    var timerRunning by rememberSaveable(item.id) { mutableStateOf(false) }
+                    var timerRemainingMs by rememberSaveable(item.id) { mutableStateOf(0L) }
+                    var timerDurationMs by rememberSaveable(item.id) { mutableStateOf(defaultTimerMs) }
+                    var showTimerDialog by rememberSaveable(item.id) { mutableStateOf(false) }
+                    val timerDisplayMs = if (timerRunning || timerRemainingMs > 0L) timerRemainingMs else timerDurationMs
+                    val timerLabel = formatMinutesSeconds(timerDisplayMs)
+
+                    LaunchedEffect(timerRunning) {
+                        if (!timerRunning) return@LaunchedEffect
+                        var lastTick = System.currentTimeMillis()
+                        while (timerRunning && timerRemainingMs > 0L) {
+                            delay(100L)
+                            val now = System.currentTimeMillis()
+                            val elapsed = now - lastTick
+                            lastTick = now
+                            timerRemainingMs = (timerRemainingMs - elapsed).coerceAtLeast(0L)
+                        }
+                        if (timerRunning && timerRemainingMs == 0L) {
+                            timerRunning = false
+                            triggerVibration()
+                        }
+                    }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(30.dp),
+                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
+                    ) {
+                        Box {
+                            Box(
+                                modifier = Modifier
+                                    .width(6.dp)
+                                    .fillMaxHeight()
+                                    .background(if (isPrimary) vibrantGreen else Color.White.copy(alpha = 0.12f))
+                                    .align(Alignment.CenterStart)
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 22.dp, end = 18.dp, top = 18.dp, bottom = 18.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                val fullTitle = item.name ?: "Exercise"
+                                var titleRevealToken by remember(item.id) { mutableStateOf(0) }
+                                LaunchedEffect(titleRevealToken) {
+                                    if (titleRevealToken == 0) return@LaunchedEffect
+                                    delay(1400)
+                                    titleRevealToken = 0
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 12.dp)
+                                    ) {
+                                        Text(
+                                            text = fullTitle,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = textHigh,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { titleRevealToken += 1 }
+                                        )
+                                        AnimatedVisibility(
+                                            visible = titleRevealToken > 0,
+                                            enter = fadeIn(animationSpec = tween(150)),
+                                            exit = fadeOut(animationSpec = tween(150))
+                                        ) {
+                                            Text(
+                                                text = fullTitle,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = textDim
+                                            )
+                                        }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        val timerAccent = if (timerRunning) vibrantGreen else textHigh.copy(alpha = 0.8f)
+                                        val timerSurface = if (timerRunning) vibrantGreen.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.06f)
+                                        val timerBorder = if (timerRunning) vibrantGreen.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f)
+                                        Surface(
+                                            shape = RoundedCornerShape(20.dp),
+                                            color = timerSurface,
+                                            border = BorderStroke(1.dp, timerBorder),
+                                            modifier = Modifier.combinedClickable(
+                                                enabled = !state.isActionRunning,
+                                                onClick = {
+                                                    if (timerRunning) {
+                                                        timerRunning = false
+                                                        timerRemainingMs = 0L
+                                                    } else {
+                                                        timerRemainingMs = timerDurationMs
+                                                        timerRunning = true
+                                                    }
+                                                },
+                                                onLongClick = { showTimerDialog = true }
+                                            )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Timer,
+                                                    contentDescription = null,
+                                                    tint = timerAccent,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Text(
+                                                    text = timerLabel,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = timerAccent
+                                                )
+                                            }
+                                        }
+                                        val setTotal = setEdits?.size ?: 0
+                                        if (setTotal > 0) {
+                                            Surface(
+                                                shape = RoundedCornerShape(20.dp),
+                                                color = vibrantGreen.copy(alpha = 0.12f),
+                                                border = BorderStroke(1.dp, vibrantGreen.copy(alpha = 0.4f))
+                                            ) {
+                                                Text(
+                                                    text = "Set 1/$setTotal",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = vibrantGreen,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (setEdits == null) {
+                                    Text(
+                                        text = "Preparing sets...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = textDim
+                                    )
+                                } else {
+                                    setEdits.forEachIndexed { setIndex, entry ->
+                                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "Set ${setIndex + 1}".uppercase(),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Black,
+                                                    letterSpacing = 2.sp,
+                                                    color = if (isPrimary) vibrantGreen else textDim
+                                                )
+                                                if (isEditing && setEdits.size > 1) {
+                                                    IconButton(onClick = { setEdits.remove(entry) }) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.Close,
+                                                            contentDescription = "Remove set",
+                                                            tint = textDim
+                                                        )
+                                                    }
+                                                } else {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.MoreVert,
+                                                        contentDescription = null,
+                                                        tint = textDim
+                                                    )
+                                                }
+                                            }
+                                            val textStyle = MaterialTheme.typography.titleMedium.copy(
+                                                color = textHigh,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Weight".uppercase(),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 1.5.sp,
+                                                        color = textDim
+                                                    )
+                                                    OutlinedTextField(
+                                                        value = entry.weight,
+                                                        onValueChange = { entry.weight = it },
+                                                        placeholder = { Text("0") },
+                                                        singleLine = true,
+                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                                        shape = fieldShape,
+                                                        colors = textFieldColors,
+                                                        textStyle = textStyle,
+                                                        readOnly = !isEditing
+                                                    )
+                                                }
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Reps".uppercase(),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 1.5.sp,
+                                                        color = textDim
+                                                    )
+                                                    OutlinedTextField(
+                                                        value = entry.reps,
+                                                        onValueChange = {
+                                                            entry.reps = it
+                                                            entry.repsError = false
+                                                        },
+                                                        placeholder = { Text("0") },
+                                                        singleLine = true,
+                                                        isError = entry.repsError,
+                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                                        shape = fieldShape,
+                                                        colors = textFieldColors,
+                                                        textStyle = textStyle,
+                                                        readOnly = !isEditing
+                                                    )
+                                                }
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "RIR".uppercase(),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 1.5.sp,
+                                                        color = textDim
+                                                    )
+                                                    OutlinedTextField(
+                                                        value = entry.rir,
+                                                        onValueChange = { entry.rir = it },
+                                                        placeholder = { Text("0") },
+                                                        singleLine = true,
+                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                                        shape = fieldShape,
+                                                        colors = textFieldColors,
+                                                        textStyle = textStyle,
+                                                        readOnly = !isEditing
+                                                    )
+                                                }
+                                            }
+                                            if (setIndex < setEdits.lastIndex) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(1.dp)
+                                                        .background(Color.White.copy(alpha = 0.06f))
+                                                )
+                                            }
+                                        }
+                                    }
+                                    val addSetColor = if (isPrimary) vibrantGreen else textDim
+                                    val addSetBg = if (isPrimary) vibrantGreen.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.05f)
+                                    val addSetBorder = if (isPrimary) vibrantGreen.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.12f)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(20.dp))
+                                            .background(addSetBg)
+                                            .border(1.dp, addSetBorder, RoundedCornerShape(20.dp))
+                                            .clickable(enabled = isEditing && !state.isActionRunning) {
+                                                setEdits.add(SetEditState())
+                                            }
+                                            .padding(vertical = 12.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(Icons.Rounded.Add, contentDescription = null, tint = addSetColor)
+                                            Text(
+                                                text = "Add Set",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                color = addSetColor
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (showTimerDialog) {
+                        var minutesText by rememberSaveable(item.id) {
+                            mutableStateOf((timerDurationMs / 60_000L).toString().padStart(2, '0'))
+                        }
+                        var secondsText by rememberSaveable(item.id) {
+                            mutableStateOf(((timerDurationMs / 1000L) % 60L).toString().padStart(2, '0'))
+                        }
+                        AlertDialog(
+                            onDismissRequest = { showTimerDialog = false },
+                            title = { Text("Set timer") },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        OutlinedTextField(
+                                            value = minutesText,
+                                            onValueChange = { minutesText = it.filter(Char::isDigit).take(2) },
+                                            label = { Text("Minutes") },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        OutlinedTextField(
+                                            value = secondsText,
+                                            onValueChange = { secondsText = it.filter(Char::isDigit).take(2) },
+                                            label = { Text("Seconds") },
+                                            singleLine = true,
+                                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                    Text(
+                                        text = "Long-press the timer chip anytime to update it.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        val minutes = minutesText.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
+                                        val seconds = secondsText.toLongOrNull()?.coerceIn(0L, 59L) ?: 0L
+                                        timerDurationMs = (minutes * 60L + seconds) * 1000L
+                                        timerRemainingMs = 0L
+                                        timerRunning = false
+                                        showTimerDialog = false
+                                    }
+                                ) {
+                                    Text("Save")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showTimerDialog = false }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(colors = listOf(Color.Transparent, forestBg.copy(alpha = 0.95f), forestBg)))
+                .padding(horizontal = 20.dp, vertical = 16.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                localError?.let { message ->
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
                     )
+                }
+                val buttonEnabled = isEditing && !state.isActionRunning
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(if (buttonEnabled) vibrantGreen else vibrantGreen.copy(alpha = 0.4f))
+                        .border(1.dp, vibrantGreen.copy(alpha = 0.25f), RoundedCornerShape(28.dp))
+                        .clickable(enabled = buttonEnabled) {
+                            val updates = mutableListOf<WorkoutSetUpdateEntry>()
+                            val newSets = mutableListOf<WorkoutSetEntry>()
+                            var hasError = false
+                            setEditsByItem.forEach { (itemId, entries) ->
+                                entries.forEach { entry ->
+                                    if (!entry.hasAnyInput()) {
+                                        entry.repsError = false
+                                        return@forEach
+                                    }
+                                    val reps = entry.reps.trim().toIntOrNull()
+                                    if (reps == null) {
+                                        entry.repsError = true
+                                        hasError = true
+                                    } else {
+                                        entry.repsError = false
+                                        if (entry.setId == null) {
+                                            newSets.add(
+                                                WorkoutSetEntry(
+                                                    itemId = itemId,
+                                                    reps = reps,
+                                                    weight = entry.weight.toDoubleOrNull(),
+                                                    rir = entry.rir.toDoubleOrNull()
+                                                )
+                                            )
+                                        } else {
+                                            updates.add(
+                                                WorkoutSetUpdateEntry(
+                                                    itemId = itemId,
+                                                    setId = entry.setId,
+                                                    reps = reps,
+                                                    weight = entry.weight.toDoubleOrNull(),
+                                                    rir = entry.rir.toDoubleOrNull()
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            if (hasError) {
+                                localError = "Reps are required for each set."
+                                return@clickable
+                            }
+                            if (updates.isEmpty() && newSets.isEmpty()) {
+                                localError = "No changes to save."
+                                return@clickable
+                            }
+                            localError = null
+                            onSaveEdits(workoutId, updates, newSets)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        if (state.isActionRunning) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = forestBg,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = forestBg
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = if (state.isActionRunning) "Saving..." else "Save Workout",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = forestBg
+                        )
+                    }
                 }
             }
         }
@@ -3578,6 +5143,7 @@ private fun WorkoutItemCard(
     workoutId: String,
     item: WorkoutItem,
     onAddSet: (workoutId: String, itemId: String, reps: Int, weight: Double?, rir: Double?, rpe: Double?, notes: String?, isPr: Boolean) -> Unit,
+    onEditSet: (WorkoutSet) -> Unit,
     isActionRunning: Boolean
 ) {
     Card(
@@ -3613,7 +5179,7 @@ private fun WorkoutItemCard(
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     item.sets.forEach { set ->
-                        SetRow(set)
+                        SetRow(set = set, onEdit = { onEditSet(set) })
                     }
                 }
             }
@@ -3628,7 +5194,7 @@ private fun WorkoutItemCard(
 }
 
 @Composable
-private fun SetRow(set: WorkoutSet) {
+private fun SetRow(set: WorkoutSet, onEdit: (() -> Unit)? = null) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -3650,18 +5216,116 @@ private fun SetRow(set: WorkoutSet) {
                 Text(it, style = MaterialTheme.typography.bodySmall)
             }
         }
-        if (set.isPR == true) {
-            AssistChip(
-                onClick = {},
-                enabled = false,
-                label = { Text("PR") },
-                colors = AssistChipDefaults.assistChipColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (set.isPR == true) {
+                AssistChip(
+                    onClick = {},
+                    enabled = false,
+                    label = { Text("PR") },
+                    colors = AssistChipDefaults.assistChipColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 )
-            )
+            }
+            onEdit?.let {
+                IconButton(onClick = it) {
+                    Icon(Icons.Rounded.Edit, contentDescription = "Edit set")
+                }
+            }
         }
     }
+}
+
+private data class EditSetState(
+    val workoutId: String,
+    val itemId: String,
+    val set: WorkoutSet
+)
+
+@Composable
+private fun EditSetDialog(
+    editState: EditSetState,
+    isSubmitting: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (reps: Int?, weight: Double?, rir: Double?, notes: String?, isPr: Boolean?) -> Unit
+) {
+    var repsText by remember(editState) { mutableStateOf(editState.set.reps?.toString() ?: "") }
+    var weightText by remember(editState) { mutableStateOf(editState.set.weight?.toString() ?: "") }
+    var rirText by remember(editState) { mutableStateOf(editState.set.rir?.toString() ?: "") }
+    var notesText by remember(editState) { mutableStateOf(editState.set.notes ?: "") }
+    var isPr by remember(editState) { mutableStateOf(editState.set.isPR == true) }
+    var repsError by remember(editState) { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit set") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = repsText,
+                    onValueChange = {
+                        repsText = it
+                        repsError = false
+                    },
+                    label = { Text("Reps") },
+                    singleLine = true,
+                    isError = repsError,
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                )
+                OutlinedTextField(
+                    value = weightText,
+                    onValueChange = { weightText = it },
+                    label = { Text("Weight") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                )
+                OutlinedTextField(
+                    value = rirText,
+                    onValueChange = { rirText = it },
+                    label = { Text("RIR") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                )
+                OutlinedTextField(
+                    value = notesText,
+                    onValueChange = { notesText = it },
+                    label = { Text("Notes") },
+                    minLines = 2
+                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.Switch(checked = isPr, onCheckedChange = { isPr = it })
+                    Text("PR")
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val reps = repsText.toIntOrNull()
+                    if (reps == null) {
+                        repsError = true
+                        return@Button
+                    }
+                    onSave(
+                        reps,
+                        weightText.toDoubleOrNull(),
+                        rirText.toDoubleOrNull(),
+                        notesText.ifBlank { null },
+                        isPr
+                    )
+                },
+                enabled = !isSubmitting
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

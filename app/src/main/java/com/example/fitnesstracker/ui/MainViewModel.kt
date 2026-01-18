@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.ZoneId
 
 data class FitnessUiState(
     val user: User? = null,
@@ -22,10 +24,31 @@ data class FitnessUiState(
     val selectedWorkout: Workout? = null,
     val recentlyCreatedWorkoutId: String? = null,
     val recentlyCreatedWorkoutPlanId: String? = null,
+    val recentlyCompletedWorkoutId: String? = null,
+    val activeWorkoutId: String? = null,
+    val activeWorkoutPlanId: String? = null,
     val isLoading: Boolean = false,
     val isActionRunning: Boolean = false,
     val errorMessage: String? = null,
     val infoMessage: String? = null
+)
+
+data class WorkoutSetEntry(
+    val itemId: String,
+    val reps: Int,
+    val weight: Double? = null,
+    val rir: Double? = null,
+    val rpe: Double? = null,
+    val notes: String? = null,
+    val isPr: Boolean = false
+)
+
+data class WorkoutSetUpdateEntry(
+    val itemId: String,
+    val setId: String,
+    val reps: Int,
+    val weight: Double? = null,
+    val rir: Double? = null
 )
 
 class MainViewModel(
@@ -79,6 +102,14 @@ class MainViewModel(
 
     fun consumeRecentlyCreatedWorkoutPlan() {
         _uiState.update { it.copy(recentlyCreatedWorkoutPlanId = null) }
+    }
+
+    fun consumeRecentlyCompletedWorkout() {
+        _uiState.update { it.copy(recentlyCompletedWorkoutId = null) }
+    }
+
+    fun clearActiveWorkout() {
+        _uiState.update { it.copy(activeWorkoutId = null, activeWorkoutPlanId = null) }
     }
 
     fun selectWorkout(workoutId: String, force: Boolean = false, infoMessage: String? = null) {
@@ -140,6 +171,37 @@ class MainViewModel(
                 },
                 onFailure = { error ->
                     _uiState.update { it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not create workout")) }
+                }
+            )
+        }
+    }
+
+    fun startWorkoutFromPlan(planId: String) {
+        val date = LocalDate.now().toString()
+        val timezone = ZoneId.systemDefault().id
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
+            val result = repository.startWorkout(planId, date, timezone)
+            result.fold(
+                onSuccess = { workoutId ->
+                    _uiState.update {
+                        it.copy(
+                            activeWorkoutId = workoutId,
+                            activeWorkoutPlanId = planId
+                        )
+                    }
+                    refreshAfterAction(
+                        selectWorkoutId = workoutId,
+                        infoMessage = "Workout started"
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isActionRunning = false,
+                            errorMessage = error.userFacing("Could not start workout")
+                        )
+                    }
                 }
             )
         }
@@ -269,10 +331,146 @@ class MainViewModel(
         }
     }
 
+    fun logWorkoutSets(workoutId: String, entries: List<WorkoutSetEntry>) {
+        if (entries.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "Add at least one set before saving.") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
+            var failure: Throwable? = null
+            for (entry in entries) {
+                val result = repository.addSet(
+                    workoutId = workoutId,
+                    itemId = entry.itemId,
+                    reps = entry.reps,
+                    weight = entry.weight,
+                    rir = entry.rir,
+                    rpe = entry.rpe,
+                    notes = entry.notes,
+                    isPR = entry.isPr
+                )
+                if (result.isFailure) {
+                    failure = result.exceptionOrNull()
+                    break
+                }
+            }
+            if (failure == null) {
+                refreshAfterAction(
+                    selectWorkoutId = workoutId,
+                    infoMessage = "Workout saved",
+                    completedWorkoutId = workoutId
+                )
+            } else {
+                _uiState.update {
+                    it.copy(
+                        isActionRunning = false,
+                        errorMessage = failure.userFacing("Could not save workout")
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateSet(
+        workoutId: String,
+        itemId: String,
+        setId: String,
+        reps: Int?,
+        weight: Double?,
+        rir: Double?,
+        rpe: Double?,
+        notes: String?,
+        isPr: Boolean?
+    ) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
+            val result = repository.updateSet(
+                workoutId = workoutId,
+                itemId = itemId,
+                setId = setId,
+                reps = reps,
+                weight = weight,
+                rir = rir,
+                rpe = rpe,
+                notes = notes?.takeUnless { it.isNullOrBlank() },
+                isPr = isPr
+            )
+            result.fold(
+                onSuccess = {
+                    selectWorkout(workoutId, force = true, infoMessage = "Set updated")
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not update set"))
+                    }
+                }
+            )
+        }
+    }
+
+    fun updateWorkoutLog(
+        workoutId: String,
+        updates: List<WorkoutSetUpdateEntry>,
+        newSets: List<WorkoutSetEntry>
+    ) {
+        if (updates.isEmpty() && newSets.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "No changes to save.") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
+            var failure: Throwable? = null
+            for (entry in newSets) {
+                val result = repository.addSet(
+                    workoutId = workoutId,
+                    itemId = entry.itemId,
+                    reps = entry.reps,
+                    weight = entry.weight,
+                    rir = entry.rir,
+                    rpe = entry.rpe,
+                    notes = entry.notes,
+                    isPR = entry.isPr
+                )
+                if (result.isFailure) {
+                    failure = result.exceptionOrNull()
+                    break
+                }
+            }
+            if (failure == null) {
+                for (entry in updates) {
+                    val result = repository.updateSet(
+                        workoutId = workoutId,
+                        itemId = entry.itemId,
+                        setId = entry.setId,
+                        reps = entry.reps,
+                        weight = entry.weight,
+                        rir = entry.rir,
+                        rpe = null,
+                        notes = null,
+                        isPr = null
+                    )
+                    if (result.isFailure) {
+                        failure = result.exceptionOrNull()
+                        break
+                    }
+                }
+            }
+            if (failure == null) {
+                selectWorkout(workoutId, force = true, infoMessage = "Workout updated")
+            } else {
+                _uiState.update {
+                    it.copy(isActionRunning = false, errorMessage = failure.userFacing("Could not update workout"))
+                }
+            }
+        }
+    }
+
     private suspend fun refreshAfterAction(
         selectWorkoutId: String? = null,
         infoMessage: String? = null,
-        createdWorkoutId: String? = null
+        createdWorkoutId: String? = null,
+        completedWorkoutId: String? = null
     ) {
         val workoutsResult = repository.fetchWorkouts()
         val exercisesResult = repository.fetchExercises()
@@ -284,7 +482,8 @@ class MainViewModel(
                 errorMessage = workoutsResult.exceptionOrNull()?.message
                     ?: exercisesResult.exceptionOrNull()?.message,
                 infoMessage = infoMessage ?: state.infoMessage,
-                recentlyCreatedWorkoutId = createdWorkoutId ?: state.recentlyCreatedWorkoutId
+                recentlyCreatedWorkoutId = createdWorkoutId ?: state.recentlyCreatedWorkoutId,
+                recentlyCompletedWorkoutId = completedWorkoutId ?: state.recentlyCompletedWorkoutId
             )
         }
         selectWorkoutId?.let { selectWorkout(it, force = true, infoMessage = infoMessage) }

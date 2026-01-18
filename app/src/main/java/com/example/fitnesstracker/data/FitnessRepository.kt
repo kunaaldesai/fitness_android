@@ -9,6 +9,8 @@ import com.example.fitnesstracker.data.remote.CreateWorkoutRequest
 import com.example.fitnesstracker.data.remote.Exercise
 import com.example.fitnesstracker.data.remote.IdResponse
 import com.example.fitnesstracker.data.remote.NetworkModule
+import com.example.fitnesstracker.data.remote.StartWorkoutRequest
+import com.example.fitnesstracker.data.remote.UpdateSetRequest
 import com.example.fitnesstracker.data.remote.User
 import com.example.fitnesstracker.data.remote.UsersApi
 import com.example.fitnesstracker.data.remote.Workout
@@ -52,6 +54,21 @@ class FitnessRepository(
                 timezone = timezone
             )
         ).requireId("createWorkout")
+    }
+
+    suspend fun startWorkout(
+        workoutPlanId: String,
+        date: String,
+        timezone: String? = null
+    ): Result<String> = runCatching {
+        workoutsApi.startWorkout(
+            userId,
+            StartWorkoutRequest(
+                workoutId = workoutPlanId,
+                date = date,
+                timezone = timezone
+            )
+        ).requireId("startWorkout")
     }
 
     suspend fun createWorkoutPlan(
@@ -132,6 +149,34 @@ class FitnessRepository(
                 isPR = isPR
             )
         ).requireId("addSet")
+    }
+
+    suspend fun updateSet(
+        workoutId: String,
+        itemId: String,
+        setId: String,
+        reps: Int?,
+        weight: Double?,
+        rir: Double?,
+        rpe: Double?,
+        notes: String?,
+        isPr: Boolean?
+    ): Result<Unit> = runCatching {
+        workoutsApi.updateSet(
+            userId,
+            workoutId,
+            itemId,
+            setId,
+            UpdateSetRequest(
+                reps = reps,
+                weight = weight,
+                rir = rir,
+                rpe = rpe,
+                notes = notes,
+                isPr = isPr
+            )
+        )
+        Unit
     }
 
     private fun IdResponse.requireId(action: String): String {

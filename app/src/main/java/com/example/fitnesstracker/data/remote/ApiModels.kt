@@ -130,6 +130,24 @@ data class CreateSetRequest(
 )
 
 @Serializable
+data class StartWorkoutRequest(
+    @SerialName("workout_id") val workoutId: String,
+    val date: String? = null,
+    val timezone: String? = null,
+    val notes: String? = null
+)
+
+@Serializable
+data class UpdateSetRequest(
+    val reps: Int? = null,
+    val weight: Double? = null,
+    val rir: Double? = null,
+    val rpe: Double? = null,
+    val notes: String? = null,
+    @SerialName("isPR") val isPr: Boolean? = null
+)
+
+@Serializable
 data class IdResponse(
     val message: String? = null,
     val id: String? = null

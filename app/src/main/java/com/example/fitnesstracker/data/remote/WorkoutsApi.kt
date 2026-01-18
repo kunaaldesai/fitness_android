@@ -3,6 +3,7 @@ package com.example.fitnesstracker.data.remote
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -30,6 +31,12 @@ interface WorkoutsApi {
     suspend fun createWorkout(
         @Path("userId") userId: String,
         @Body body: CreateWorkoutRequest
+    ): IdResponse
+
+    @POST("users/{userId}/workouts/start")
+    suspend fun startWorkout(
+        @Path("userId") userId: String,
+        @Body body: StartWorkoutRequest
     ): IdResponse
 
     @POST("createWorkout")
@@ -62,5 +69,14 @@ interface WorkoutsApi {
         @Path("workoutId") workoutId: String,
         @Path("itemId") itemId: String,
         @Body body: CreateSetRequest
+    ): IdResponse
+
+    @PUT("users/{userId}/workouts/{workoutId}/items/{itemId}/sets/{setId}")
+    suspend fun updateSet(
+        @Path("userId") userId: String,
+        @Path("workoutId") workoutId: String,
+        @Path("itemId") itemId: String,
+        @Path("setId") setId: String,
+        @Body body: UpdateSetRequest
     ): IdResponse
 }
