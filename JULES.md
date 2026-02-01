@@ -2,10 +2,14 @@
 ## INTRO
 Hello Jules. This is the file where you will be able to see the to do list for scheduled tasks. If there is nothing listed here, then do not do anything for this run. 
 
-## Unit Tests
-Hey Codex, replace this text here and explain to Jules (an AI agent that runs scheduled tasks) how to run the tests and to maintain them. like:
-- Make sure the unit tests are passing and up to date. workouts.py, users.py, and workouts_helpers.py will let you see what the backend endpoints look like, so that you can adjust the mock data if something, like the type of a field, has changed.
 
 ## TO DO
-Task 1
-- Complete README.md with an introduction and a folder structure for the codebase. Also, explain how to set it up at the end.
+### Task 1
+- Make sure the folder structure and instructions in README.md are up to date. If not, then make a PR and update it.
+### Task 2
+- Validate that automated tests pass and keep mocks aligned with backend shapes.
+- Run unit tests: `./gradlew test` (use the Android Studio JBR if `JAVA_HOME` is required).
+- Run UI tests only with a device/emulator: `./gradlew connectedAndroidTest`.
+- Keep mock payloads in tests consistent with the backend endpoints defined in `workouts.py`, `users.py`, and `workouts_helpers.py` (field names, types, optional values).
+- Do not hit live databases or external services; use MockK or local fakes only.
+- If a backend field changes, update the test fixtures and assertions first, then re-run the suite.
