@@ -3,12 +3,10 @@
 Hello Jules. This is the file where you will be able to see the to do list for scheduled tasks. If there is nothing listed here, then do not do anything for this run. 
 
 
-## TO DO
-
-## COMPLETED
-### Task 1
+## TO DO 
+### Task 1 (Daily Task)
 - Make sure the folder structure and instructions in README.md are up to date. If not, then make a PR and update it.
-### Task 2
+### Task 2 (Daily Task)
 - Validate that automated tests pass and keep mocks aligned with backend shapes.
 - Run unit tests: `./gradlew test` (use the Android Studio JBR if `JAVA_HOME` is required).
 - Run UI tests only with a device/emulator: `./gradlew connectedAndroidTest`.
