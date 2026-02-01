@@ -4,6 +4,8 @@ Hello Jules. This is the file where you will be able to see the to do list for s
 
 
 ## TO DO
+
+## COMPLETED
 ### Task 1
 - Make sure the folder structure and instructions in README.md are up to date. If not, then make a PR and update it.
 ### Task 2
