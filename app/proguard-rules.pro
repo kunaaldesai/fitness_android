@@ -19,3 +19,24 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# --- Sentinel Security Rules ---
+
+# Retrofit
+# Retrofit does not require any special rules for the most part, but we need to keep the interfaces
+-keepattributes Signature
+-keepattributes Exceptions
+-keep interface com.example.fitnesstracker.data.remote.** { *; }
+
+# Kotlinx Serialization
+-keepattributes *Annotation*, InnerClasses
+-dontwarn kotlinx.serialization.**
+-keepclassmembers class kotlinx.serialization.json.** {
+    *** Companion;
+}
+-keepclasseswithmembers class * {
+    @kotlinx.serialization.Serializable <init>(...);
+}
+
+# General
+-keepattributes EnclosingMethod
