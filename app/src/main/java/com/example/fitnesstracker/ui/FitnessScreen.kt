@@ -28,6 +28,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -2755,7 +2756,11 @@ private fun CreateWorkoutPlanScreen(
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(14.dp))
                                                 .background(if (isSelected) accent else Color.Transparent)
-                                                .clickable { type = option }
+                                                .selectable(
+                                                    selected = isSelected,
+                                                    onClick = { type = option },
+                                                    role = Role.RadioButton
+                                                )
                                                 .padding(vertical = 10.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -2791,13 +2796,17 @@ private fun CreateWorkoutPlanScreen(
                                                     if (isSelected) accent.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.12f),
                                                     RoundedCornerShape(16.dp)
                                                 )
-                                                .clickable {
-                                                    if (isSelected) {
-                                                        muscleGroups.remove(option)
-                                                    } else {
-                                                        muscleGroups.add(option)
+                                                .toggleable(
+                                                    value = isSelected,
+                                                    role = Role.Checkbox,
+                                                    onValueChange = { checked ->
+                                                        if (checked) {
+                                                            muscleGroups.add(option)
+                                                        } else {
+                                                            muscleGroups.remove(option)
+                                                        }
                                                     }
-                                                }
+                                                )
                                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
