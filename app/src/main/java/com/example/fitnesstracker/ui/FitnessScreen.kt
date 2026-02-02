@@ -3478,6 +3478,9 @@ private fun StartWorkoutScreen(
     val workout = remember(state.selectedWorkout, activeWorkoutId) {
         state.selectedWorkout?.takeIf { it.id == activeWorkoutId }
     }
+    val sortedWorkoutItems = remember(workout?.items) {
+        workout?.items?.sortedBy { it.order ?: 0 } ?: emptyList()
+    }
     val setInputsByItem = remember(activeWorkoutId) { mutableStateMapOf<String, SnapshotStateList<SetInputState>>() }
     var localError by remember(activeWorkoutId) { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -3710,7 +3713,7 @@ private fun StartWorkoutScreen(
                     }
                 }
             } else {
-                itemsIndexed(workout.items.sortedBy { it.order ?: 0 }, key = { _, item -> item.id }) { index, item ->
+                itemsIndexed(sortedWorkoutItems, key = { _, item -> item.id }) { index, item ->
                     val isPrimary = index == 0
                     val setInputs = setInputsByItem[item.id]
                     val defaultTimerMs = 3 * 60_000L
@@ -4328,6 +4331,9 @@ private fun WorkoutDetailScreen(
         state.selectedWorkout?.takeIf { it.id == workoutId }
             ?: state.workouts.firstOrNull { it.id == workoutId }
     }
+    val sortedWorkoutItems = remember(workout?.items) {
+        workout?.items?.sortedBy { it.order ?: 0 } ?: emptyList()
+    }
     val context = LocalContext.current
     val vibrator = remember(context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -4590,7 +4596,7 @@ private fun WorkoutDetailScreen(
                     }
                 }
             } else {
-                itemsIndexed(workout.items.sortedBy { it.order ?: 0 }, key = { _, item -> item.id }) { index, item ->
+                itemsIndexed(sortedWorkoutItems, key = { _, item -> item.id }) { index, item ->
                     val isPrimary = index == 0
                     val setEdits = setEditsByItem[item.id]
                     val defaultTimerMs = 3 * 60_000L
