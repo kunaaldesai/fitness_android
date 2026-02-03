@@ -32,7 +32,10 @@ FitnessTracker/
 ├─ gradle/
 │  └─ libs.versions.toml                   # Centralized dependency versions
 ├─ gradlew / gradlew.bat
-└─ settings.gradle.kts
+├─ settings.gradle.kts
+├─ users.py                    # Backend: User endpoints
+├─ workouts.py                 # Backend: Workout endpoints
+└─ workouts_helpers.py         # Backend: Helper logic
 ```
 
 ## Setup
