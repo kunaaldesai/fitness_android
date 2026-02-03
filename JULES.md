@@ -16,6 +16,5 @@ Hello Jules. This is the file where you will be able to see the to do list for s
 
 ## BUGS
 ### Bug 1 (IMPORTANT)
-- After I press save, "loading workout details" it says could not load details try again immediately. something is wrong here. Doesn't do anything. the data is saved in the database though. so what's the issue? look at the backend workouts.py, workouts_helpers.py, users.py. workouts.py is relevant one. don't edit it. but maybe see if you're not using the get and update endpoints properly?
-- The data is saved in the database so why does it not appear in Recent Activity -> See All screen aka the workout history screen. Maybe this is related to the first bug though.
 - HTTP 403 pop up on the bottom when opening the homescreen. Usually when scrolling all the way to the bottom. Sometimes when closing the app and reopening.
+- Profile page is empty. FULLY redesign the profile page so it looks like the rest of the app. Use Google Stitch to design it, I have it connected in Jules. So you have access to it. And then create it.
