@@ -4592,8 +4592,15 @@ private fun WorkoutDetailScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            CircularProgressIndicator(color = WorkoutVibrantGreen)
-                            Text("Loading workout details...", color = WorkoutTextHigh)
+                            if (state.isActionRunning) {
+                                CircularProgressIndicator(color = WorkoutVibrantGreen)
+                                Text("Loading workout details...", color = WorkoutTextHigh)
+                            } else {
+                                Text("Could not load details.", color = WorkoutTextHigh)
+                                TextButton(onClick = onRefresh) {
+                                    Text("Try again", color = WorkoutVibrantGreen)
+                                }
+                            }
                         }
                     }
                 }

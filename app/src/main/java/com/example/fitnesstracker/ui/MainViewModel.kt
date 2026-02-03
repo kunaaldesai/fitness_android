@@ -143,9 +143,12 @@ class MainViewModel(
             _uiState.update { state ->
                 result.fold(
                     onSuccess = { workout ->
+                        val updatedWorkouts = (state.workouts.filter { it.id != workout.id } + workout)
+                            .sortedByDescending { it.date ?: "" }
                         state.copy(
                             selectedWorkout = workout,
                             selectedWorkoutId = workout.id,
+                            workouts = updatedWorkouts,
                             isActionRunning = false,
                             infoMessage = infoMessage ?: state.infoMessage
                         )
@@ -213,8 +216,7 @@ class MainViewModel(
                             activeWorkoutPlanId = planId,
                             selectedWorkout = newWorkout,
                             selectedWorkoutId = tempId,
-                            isActionRunning = false,
-                            infoMessage = "Workout started locally"
+                            isActionRunning = false
                         )
                     }
                 },
