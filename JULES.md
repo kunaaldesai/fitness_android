@@ -16,4 +16,8 @@ Hello Jules. This is the file where you will be able to see the to do list for s
 
 ## BUGS
 ### Bug 1 (IMPORTANT)
-- Nothing yet.
+- After clicking start workout, i dont need to see a pop up saying template loaded locally. Just do it, but dont announce it.
+- After i press save on a workout, it still has the pop up. 
+- After I press save, "loading workout details" has the loading icon forever. It says loading. Doesn't do anything. 
+- The data is saved in the database so why does it not appear in Recent Activity -> See All screen aka the workout history screen
+- HTTP 403 when going to homescreen sometimes
