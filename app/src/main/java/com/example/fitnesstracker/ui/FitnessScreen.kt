@@ -707,11 +707,13 @@ private fun StaggeredItem(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    var visible by remember { mutableStateOf(false) }
+    var visible by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        delay(delayMillis.toLong())
-        visible = true
+        if (!visible) {
+            delay(delayMillis.toLong())
+            visible = true
+        }
     }
 
     AnimatedVisibility(
