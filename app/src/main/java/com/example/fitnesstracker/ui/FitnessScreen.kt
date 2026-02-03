@@ -2528,8 +2528,6 @@ private fun CreateWorkoutPlanScreen(
     val glass = Color(0x73142319)
     val glassBorder = Color(0x14FFFFFF)
     val textDim = Color(0xFFA0B4AB)
-    val cardShape = RoundedCornerShape(28.dp)
-    val fieldShape = RoundedCornerShape(20.dp)
     val typeOptions = listOf("Strength", "Cardio")
     val focusOptions = listOf("Upper Body", "Lower Body", "Chest", "Back", "Legs", "Biceps", "Triceps", "Shoulders", "Abs", "Cardio")
     val exercises = remember { mutableStateListOf<String>() }
@@ -2676,7 +2674,7 @@ private fun CreateWorkoutPlanScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
-                    shape = cardShape,
+                    shape = WorkoutCardShape,
                     colors = CardDefaults.cardColors(containerColor = glass),
                     border = BorderStroke(1.dp, glassBorder)
                 ) {
@@ -2728,7 +2726,7 @@ private fun CreateWorkoutPlanScreen(
                                     placeholder = { Text("e.g. Chest Day", color = Color.White.copy(alpha = 0.2f)) },
                                     singleLine = true,
                                     isError = nameError,
-                                    shape = fieldShape,
+                                    shape = WorkoutFieldShape,
                                     textStyle = fieldTextStyle,
                                     colors = textFieldColors
                                 )
@@ -2835,7 +2833,7 @@ private fun CreateWorkoutPlanScreen(
                         modifier = Modifier
                             .weight(1f)
                             .height(140.dp),
-                        shape = cardShape,
+                        shape = WorkoutCardShape,
                         colors = CardDefaults.cardColors(containerColor = glass),
                         border = BorderStroke(1.dp, glassBorder)
                     ) {
@@ -2889,10 +2887,10 @@ private fun CreateWorkoutPlanScreen(
                         modifier = Modifier
                             .weight(1f)
                             .height(140.dp)
-                            .clip(cardShape)
+                            .clip(WorkoutCardShape)
                             .border(
                                 BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
-                                cardShape
+                                WorkoutCardShape
                             )
                             .clickable { }
                     ) {
@@ -2924,7 +2922,7 @@ private fun CreateWorkoutPlanScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
-                    shape = cardShape,
+                    shape = WorkoutCardShape,
                     colors = CardDefaults.cardColors(containerColor = glass),
                     border = BorderStroke(1.dp, glassBorder)
                 ) {
@@ -3058,7 +3056,7 @@ private fun CreateWorkoutPlanScreen(
                                             .focusRequester(exerciseFocusRequester),
                                         placeholder = { Text("Add an exercise", color = Color.White.copy(alpha = 0.2f)) },
                                         singleLine = true,
-                                        shape = fieldShape,
+                                        shape = WorkoutFieldShape,
                                         textStyle = fieldTextStyle,
                                         colors = textFieldColors
                                     )
@@ -3190,7 +3188,7 @@ private fun CreateWorkoutPlanScreen(
                                             .focusRequester(equipmentFocusRequester),
                                         placeholder = { Text("Add equipment", color = Color.White.copy(alpha = 0.2f)) },
                                         singleLine = true,
-                                        shape = fieldShape,
+                                        shape = WorkoutFieldShape,
                                         textStyle = fieldTextStyle,
                                         colors = textFieldColors
                                     )
@@ -3223,7 +3221,7 @@ private fun CreateWorkoutPlanScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp),
-                    shape = cardShape,
+                    shape = WorkoutCardShape,
                     colors = CardDefaults.cardColors(containerColor = glass),
                     border = BorderStroke(1.dp, glassBorder)
                 ) {
@@ -3254,7 +3252,7 @@ private fun CreateWorkoutPlanScreen(
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("What is the goal of this workout?", color = Color.White.copy(alpha = 0.2f)) },
                             minLines = 3,
-                            shape = fieldShape,
+                            shape = WorkoutFieldShape,
                             textStyle = fieldTextStyle,
                             colors = textFieldColors
                         )
@@ -3473,6 +3471,172 @@ private class SetEditState(
     fun hasAnyInput(): Boolean = reps.isNotBlank() || weight.isNotBlank() || rir.isNotBlank()
 }
 
+private val WorkoutForestBg = Color(0xFF0A140F)
+private val WorkoutForestGlow = Color(0xFF153223)
+private val WorkoutForestCard = Color(0xB20F1C16)
+private val WorkoutVibrantGreen = Color(0xFF22C55E)
+private val WorkoutVibrantGreenDark = Color(0xFF16A34A)
+private val WorkoutTextHigh = Color(0xFFF0FDF4)
+private val WorkoutTextDim = Color(0xFF86A694)
+private val WorkoutCardShape = RoundedCornerShape(28.dp)
+private val WorkoutFieldShape = RoundedCornerShape(20.dp)
+
+@Composable
+private fun WorkoutSetInputList(
+    setInputs: SnapshotStateList<SetInputState>,
+    isPrimary: Boolean,
+    isActionRunning: Boolean,
+    textFieldColors: androidx.compose.material3.TextFieldColors,
+    onRemoveSet: (SetInputState) -> Unit,
+    onAddSet: () -> Unit
+) {
+    setInputs.forEachIndexed { setIndex, entry ->
+        androidx.compose.runtime.key(entry.id) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Set ${setIndex + 1}".uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 2.sp,
+                        color = if (isPrimary) WorkoutVibrantGreen else WorkoutTextDim
+                    )
+                    if (setInputs.size > 1) {
+                        IconButton(onClick = { onRemoveSet(entry) }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Close,
+                                contentDescription = "Remove set",
+                                tint = WorkoutTextDim
+                            )
+                        }
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreVert,
+                            contentDescription = null,
+                            tint = WorkoutTextDim
+                        )
+                    }
+                }
+                val textStyle = MaterialTheme.typography.titleMedium.copy(
+                    color = WorkoutTextHigh,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Weight".uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                            color = WorkoutTextDim
+                        )
+                        OutlinedTextField(
+                            value = entry.weight,
+                            onValueChange = { entry.weight = it },
+                            placeholder = { Text("0") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                            shape = WorkoutFieldShape,
+                            colors = textFieldColors,
+                            textStyle = textStyle
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "Reps".uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                            color = WorkoutTextDim
+                        )
+                        OutlinedTextField(
+                            value = entry.reps,
+                            onValueChange = {
+                                entry.reps = it
+                                entry.repsError = false
+                            },
+                            placeholder = { Text("0") },
+                            singleLine = true,
+                            isError = entry.repsError,
+                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                            shape = WorkoutFieldShape,
+                            colors = textFieldColors,
+                            textStyle = textStyle
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "RIR".uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                            color = WorkoutTextDim
+                        )
+                        OutlinedTextField(
+                            value = entry.rir,
+                            onValueChange = { entry.rir = it },
+                            placeholder = { Text("0") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                            shape = WorkoutFieldShape,
+                            colors = textFieldColors,
+                            textStyle = textStyle
+                        )
+                    }
+                }
+                if (setIndex < setInputs.lastIndex) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color.White.copy(alpha = 0.06f))
+                    )
+                }
+            }
+        }
+    }
+    val addSetColor = if (isPrimary) WorkoutVibrantGreen else WorkoutTextDim
+    val addSetBg = if (isPrimary) WorkoutVibrantGreen.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.05f)
+    val addSetBorder = if (isPrimary) WorkoutVibrantGreen.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.12f)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(addSetBg)
+            .border(1.dp, addSetBorder, RoundedCornerShape(20.dp))
+            .clickable(enabled = !isActionRunning) { onAddSet() }
+            .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = null, tint = addSetColor)
+            Text(
+                text = "Add Set",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = addSetColor
+            )
+        }
+    }
+}
+
 @Composable
 private fun StartWorkoutScreen(
     planId: String,
@@ -3516,25 +3680,16 @@ private fun StartWorkoutScreen(
         }
     }
 
-    val forestBg = Color(0xFF0A140F)
-    val forestGlow = Color(0xFF153223)
-    val forestCard = Color(0xB20F1C16)
-    val vibrantGreen = Color(0xFF22C55E)
-    val vibrantGreenDark = Color(0xFF16A34A)
-    val textHigh = Color(0xFFF0FDF4)
-    val textDim = Color(0xFF86A694)
-    val cardShape = RoundedCornerShape(28.dp)
-    val fieldShape = RoundedCornerShape(20.dp)
     val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = textHigh,
-        unfocusedTextColor = textHigh,
+        focusedTextColor = WorkoutTextHigh,
+        unfocusedTextColor = WorkoutTextHigh,
         focusedContainerColor = Color(0x66000000),
         unfocusedContainerColor = Color(0x66000000),
-        focusedBorderColor = vibrantGreen,
+        focusedBorderColor = WorkoutVibrantGreen,
         unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
-        cursorColor = vibrantGreen,
-        focusedPlaceholderColor = textHigh.copy(alpha = 0.2f),
-        unfocusedPlaceholderColor = textHigh.copy(alpha = 0.2f),
+        cursorColor = WorkoutVibrantGreen,
+        focusedPlaceholderColor = WorkoutTextHigh.copy(alpha = 0.2f),
+        unfocusedPlaceholderColor = WorkoutTextHigh.copy(alpha = 0.2f),
         errorBorderColor = MaterialTheme.colorScheme.error,
         errorContainerColor = Color(0x66000000)
     )
@@ -3562,7 +3717,7 @@ private fun StartWorkoutScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(forestBg)
+            .background(WorkoutForestBg)
     ) {
         val density = LocalDensity.current
         Box(
@@ -3570,7 +3725,7 @@ private fun StartWorkoutScreen(
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(forestGlow, forestBg),
+                        colors = listOf(WorkoutForestGlow, WorkoutForestBg),
                         center = Offset(with(density) { 200.dp.toPx() }, with(density) { (-40).dp.toPx() }),
                         radius = with(density) { 420.dp.toPx() }
                     )
@@ -3581,7 +3736,7 @@ private fun StartWorkoutScreen(
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(vibrantGreen.copy(alpha = 0.12f), Color.Transparent),
+                        colors = listOf(WorkoutVibrantGreen.copy(alpha = 0.12f), Color.Transparent),
                         center = Offset(with(density) { 380.dp.toPx() }, with(density) { 760.dp.toPx() }),
                         radius = with(density) { 520.dp.toPx() }
                     )
@@ -3599,19 +3754,19 @@ private fun StartWorkoutScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = textHigh)
+                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = WorkoutTextHigh)
                     }
                     Column {
                         Text(
                             text = "Active Workout",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
-                            color = textHigh
+                            color = WorkoutTextHigh
                         )
                         Text(
                             text = plan?.name ?: "Workout Session",
                             style = MaterialTheme.typography.bodySmall,
-                            color = textDim
+                            color = WorkoutTextDim
                         )
                     }
                     Spacer(modifier = Modifier.weight(1f))
@@ -3619,14 +3774,14 @@ private fun StartWorkoutScreen(
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
-                                .background(vibrantGreen.copy(alpha = livePulseAlpha), CircleShape)
+                                .background(WorkoutVibrantGreen.copy(alpha = livePulseAlpha), CircleShape)
                         )
                         Text(
                             text = "Live",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.5.sp,
-                            color = vibrantGreen
+                            color = WorkoutVibrantGreen
                         )
                     }
                 }
@@ -3636,7 +3791,7 @@ private fun StartWorkoutScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(32.dp),
-                    colors = CardDefaults.cardColors(containerColor = forestCard),
+                    colors = CardDefaults.cardColors(containerColor = WorkoutForestCard),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
                     Column(
@@ -3649,7 +3804,7 @@ private fun StartWorkoutScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Info,
                                 contentDescription = null,
-                                tint = vibrantGreen,
+                                tint = WorkoutVibrantGreen,
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
@@ -3657,14 +3812,14 @@ private fun StartWorkoutScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 2.sp,
-                                color = vibrantGreen
+                                color = WorkoutVibrantGreen
                             )
                         }
                         Text(
                             text = plan?.description?.takeIf { it.isNotBlank() }
                                 ?: "Maintain high intensity and track your RIR carefully.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = textDim
+                            color = WorkoutTextDim
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             AssistChip(
@@ -3673,7 +3828,7 @@ private fun StartWorkoutScreen(
                                 label = { Text("${workout?.items?.size ?: 0} exercises") },
                                 colors = AssistChipDefaults.assistChipColors(
                                     containerColor = Color.White.copy(alpha = 0.06f),
-                                    labelColor = textHigh
+                                    labelColor = WorkoutTextHigh
                                 )
                             )
                             plan?.type?.takeIf { it.isNotBlank() }?.let { type ->
@@ -3683,7 +3838,7 @@ private fun StartWorkoutScreen(
                                     label = { Text(type) },
                                     colors = AssistChipDefaults.assistChipColors(
                                         containerColor = Color.White.copy(alpha = 0.06f),
-                                        labelColor = textHigh
+                                        labelColor = WorkoutTextHigh
                                     )
                                 )
                             }
@@ -3696,8 +3851,8 @@ private fun StartWorkoutScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = cardShape,
-                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        shape = WorkoutCardShape,
+                        colors = CardDefaults.cardColors(containerColor = WorkoutForestCard),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                     ) {
                         Column(
@@ -3707,15 +3862,15 @@ private fun StartWorkoutScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            CircularProgressIndicator(color = vibrantGreen)
+                            CircularProgressIndicator(color = WorkoutVibrantGreen)
                             Text(
                                 text = if (state.isActionRunning) "Setting up your session..." else "Loading workout details...",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = textHigh
+                                color = WorkoutTextHigh
                             )
                             if (!state.isActionRunning) {
                                 TextButton(onClick = { onStartWorkout(planId) }) {
-                                    Text("Try again", color = vibrantGreen)
+                                    Text("Try again", color = WorkoutVibrantGreen)
                                 }
                             }
                         }
@@ -3751,7 +3906,7 @@ private fun StartWorkoutScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(30.dp),
-                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        colors = CardDefaults.cardColors(containerColor = WorkoutForestCard),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                     ) {
                         Box {
@@ -3759,7 +3914,7 @@ private fun StartWorkoutScreen(
                                 modifier = Modifier
                                     .width(6.dp)
                                     .fillMaxHeight()
-                                    .background(if (isPrimary) vibrantGreen else Color.White.copy(alpha = 0.12f))
+                                    .background(if (isPrimary) WorkoutVibrantGreen else Color.White.copy(alpha = 0.12f))
                                     .align(Alignment.CenterStart)
                             )
                             Column(
@@ -3789,7 +3944,7 @@ private fun StartWorkoutScreen(
                                             text = fullTitle,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
-                                            color = textHigh,
+                                            color = WorkoutTextHigh,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier
@@ -3804,14 +3959,14 @@ private fun StartWorkoutScreen(
                                             Text(
                                                 text = fullTitle,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = textDim
+                                                color = WorkoutTextDim
                                             )
                                         }
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        val timerAccent = if (timerRunning) vibrantGreen else textHigh.copy(alpha = 0.8f)
-                                        val timerSurface = if (timerRunning) vibrantGreen.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.06f)
-                                        val timerBorder = if (timerRunning) vibrantGreen.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f)
+                                        val timerAccent = if (timerRunning) WorkoutVibrantGreen else WorkoutTextHigh.copy(alpha = 0.8f)
+                                        val timerSurface = if (timerRunning) WorkoutVibrantGreen.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.06f)
+                                        val timerBorder = if (timerRunning) WorkoutVibrantGreen.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f)
                                         Surface(
                                             shape = RoundedCornerShape(20.dp),
                                             color = timerSurface,
@@ -3853,14 +4008,14 @@ private fun StartWorkoutScreen(
                                         if (setTotal > 0) {
                                             Surface(
                                                 shape = RoundedCornerShape(20.dp),
-                                                color = vibrantGreen.copy(alpha = 0.12f),
-                                                border = BorderStroke(1.dp, vibrantGreen.copy(alpha = 0.4f))
+                                                color = WorkoutVibrantGreen.copy(alpha = 0.12f),
+                                                border = BorderStroke(1.dp, WorkoutVibrantGreen.copy(alpha = 0.4f))
                                             ) {
                                                 Text(
                                                     text = "Set 1/$setTotal",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = vibrantGreen,
+                                                    color = WorkoutVibrantGreen,
                                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                                 )
                                             }
@@ -3872,152 +4027,17 @@ private fun StartWorkoutScreen(
                                     Text(
                                         text = "Preparing sets...",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = textDim
+                                        color = WorkoutTextDim
                                     )
                                 } else {
-                                    setInputs.forEachIndexed { setIndex, entry ->
-                                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = "Set ${setIndex + 1}".uppercase(),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.Black,
-                                                    letterSpacing = 2.sp,
-                                                    color = if (isPrimary) vibrantGreen else textDim
-                                                )
-                                                if (setInputs.size > 1) {
-                                                    IconButton(onClick = { setInputs.remove(entry) }) {
-                                                        Icon(
-                                                            imageVector = Icons.Rounded.Close,
-                                                            contentDescription = "Remove set",
-                                                            tint = textDim
-                                                        )
-                                                    }
-                                                } else {
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.MoreVert,
-                                                        contentDescription = null,
-                                                        tint = textDim
-                                                    )
-                                                }
-                                            }
-                                            val textStyle = MaterialTheme.typography.titleMedium.copy(
-                                                color = textHigh,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                                Column(
-                                                    modifier = Modifier.weight(1f),
-                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "Weight".uppercase(),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        letterSpacing = 1.5.sp,
-                                                        color = textDim
-                                                    )
-                                                    OutlinedTextField(
-                                                        value = entry.weight,
-                                                        onValueChange = { entry.weight = it },
-                                                        placeholder = { Text("0") },
-                                                        singleLine = true,
-                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-                                                        shape = fieldShape,
-                                                        colors = textFieldColors,
-                                                        textStyle = textStyle
-                                                    )
-                                                }
-                                                Column(
-                                                    modifier = Modifier.weight(1f),
-                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "Reps".uppercase(),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        letterSpacing = 1.5.sp,
-                                                        color = textDim
-                                                    )
-                                                    OutlinedTextField(
-                                                        value = entry.reps,
-                                                        onValueChange = {
-                                                            entry.reps = it
-                                                            entry.repsError = false
-                                                        },
-                                                        placeholder = { Text("0") },
-                                                        singleLine = true,
-                                                        isError = entry.repsError,
-                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-                                                        shape = fieldShape,
-                                                        colors = textFieldColors,
-                                                        textStyle = textStyle
-                                                    )
-                                                }
-                                                Column(
-                                                    modifier = Modifier.weight(1f),
-                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "RIR".uppercase(),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        letterSpacing = 1.5.sp,
-                                                        color = textDim
-                                                    )
-                                                    OutlinedTextField(
-                                                        value = entry.rir,
-                                                        onValueChange = { entry.rir = it },
-                                                        placeholder = { Text("0") },
-                                                        singleLine = true,
-                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-                                                        shape = fieldShape,
-                                                        colors = textFieldColors,
-                                                        textStyle = textStyle
-                                                    )
-                                                }
-                                            }
-                                            if (setIndex < setInputs.lastIndex) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .height(1.dp)
-                                                        .background(Color.White.copy(alpha = 0.06f))
-                                                )
-                                            }
-                                        }
-                                    }
-                                    val addSetColor = if (isPrimary) vibrantGreen else textDim
-                                    val addSetBg = if (isPrimary) vibrantGreen.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.05f)
-                                    val addSetBorder = if (isPrimary) vibrantGreen.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.12f)
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(20.dp))
-                                            .background(addSetBg)
-                                            .border(1.dp, addSetBorder, RoundedCornerShape(20.dp))
-                                            .clickable(enabled = !state.isActionRunning) { setInputs.add(SetInputState()) }
-                                            .padding(vertical = 12.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Icon(Icons.Rounded.Add, contentDescription = null, tint = addSetColor)
-                                            Text(
-                                                text = "Add Set",
-                                                style = MaterialTheme.typography.labelLarge,
-                                                fontWeight = FontWeight.Bold,
-                                                color = addSetColor
-                                            )
-                                        }
-                                    }
+                                    WorkoutSetInputList(
+                                        setInputs = setInputs,
+                                        isPrimary = isPrimary,
+                                        isActionRunning = state.isActionRunning,
+                                        textFieldColors = textFieldColors,
+                                        onRemoveSet = { setInputs.remove(it) },
+                                        onAddSet = { setInputs.add(SetInputState()) }
+                                    )
                                 }
                             }
                         }
@@ -4089,7 +4109,7 @@ private fun StartWorkoutScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .background(
-                    Brush.verticalGradient(colors = listOf(Color.Transparent, forestBg.copy(alpha = 0.95f), forestBg))
+                    Brush.verticalGradient(colors = listOf(Color.Transparent, WorkoutForestBg.copy(alpha = 0.95f), WorkoutForestBg))
                 )
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
@@ -4107,8 +4127,8 @@ private fun StartWorkoutScreen(
                         .fillMaxWidth()
                         .height(64.dp)
                         .clip(RoundedCornerShape(28.dp))
-                        .background(if (buttonEnabled) vibrantGreen else vibrantGreen.copy(alpha = 0.4f))
-                        .border(1.dp, vibrantGreen.copy(alpha = 0.25f), RoundedCornerShape(28.dp))
+                        .background(if (buttonEnabled) WorkoutVibrantGreen else WorkoutVibrantGreen.copy(alpha = 0.4f))
+                        .border(1.dp, WorkoutVibrantGreen.copy(alpha = 0.25f), RoundedCornerShape(28.dp))
                         .clickable(enabled = buttonEnabled) {
                             val entries = mutableListOf<WorkoutSetEntry>()
                             var hasError = false
@@ -4155,14 +4175,14 @@ private fun StartWorkoutScreen(
                         if (state.isActionRunning) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
-                                color = forestBg,
+                                color = WorkoutForestBg,
                                 strokeWidth = 2.dp
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Rounded.Check,
                                 contentDescription = null,
-                                tint = forestBg
+                                tint = WorkoutForestBg
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
@@ -4170,7 +4190,7 @@ private fun StartWorkoutScreen(
                             text = if (state.isActionRunning) "Saving..." else "Save Workout",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Black,
-                            color = forestBg
+                            color = WorkoutForestBg
                         )
                     }
                 }
@@ -4395,24 +4415,16 @@ private fun WorkoutDetailScreen(
         }
     }
 
-    val forestBg = Color(0xFF0A140F)
-    val forestGlow = Color(0xFF153223)
-    val forestCard = Color(0xB20F1C16)
-    val vibrantGreen = Color(0xFF22C55E)
-    val textHigh = Color(0xFFF0FDF4)
-    val textDim = Color(0xFF86A694)
-    val cardShape = RoundedCornerShape(28.dp)
-    val fieldShape = RoundedCornerShape(20.dp)
     val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = textHigh,
-        unfocusedTextColor = textHigh,
+        focusedTextColor = WorkoutTextHigh,
+        unfocusedTextColor = WorkoutTextHigh,
         focusedContainerColor = Color(0x66000000),
         unfocusedContainerColor = Color(0x66000000),
-        focusedBorderColor = vibrantGreen,
+        focusedBorderColor = WorkoutVibrantGreen,
         unfocusedBorderColor = Color.White.copy(alpha = 0.08f),
-        cursorColor = vibrantGreen,
-        focusedPlaceholderColor = textHigh.copy(alpha = 0.2f),
-        unfocusedPlaceholderColor = textHigh.copy(alpha = 0.2f),
+        cursorColor = WorkoutVibrantGreen,
+        focusedPlaceholderColor = WorkoutTextHigh.copy(alpha = 0.2f),
+        unfocusedPlaceholderColor = WorkoutTextHigh.copy(alpha = 0.2f),
         errorBorderColor = MaterialTheme.colorScheme.error,
         errorContainerColor = Color(0x66000000)
     )
@@ -4420,7 +4432,7 @@ private fun WorkoutDetailScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(forestBg)
+            .background(WorkoutForestBg)
     ) {
         val density = LocalDensity.current
         Box(
@@ -4428,7 +4440,7 @@ private fun WorkoutDetailScreen(
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(forestGlow, forestBg),
+                        colors = listOf(WorkoutForestGlow, WorkoutForestBg),
                         center = Offset(with(density) { 200.dp.toPx() }, with(density) { (-40).dp.toPx() }),
                         radius = with(density) { 420.dp.toPx() }
                     )
@@ -4439,7 +4451,7 @@ private fun WorkoutDetailScreen(
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(vibrantGreen.copy(alpha = 0.12f), Color.Transparent),
+                        colors = listOf(WorkoutVibrantGreen.copy(alpha = 0.12f), Color.Transparent),
                         center = Offset(with(density) { 380.dp.toPx() }, with(density) { 760.dp.toPx() }),
                         radius = with(density) { 520.dp.toPx() }
                     )
@@ -4457,19 +4469,19 @@ private fun WorkoutDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = textHigh)
+                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = WorkoutTextHigh)
                     }
                     Column {
                         Text(
                             text = "Active Workout",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
-                            color = textHigh
+                            color = WorkoutTextHigh
                         )
                         Text(
                             workout?.date ?: "Loading...",
                             style = MaterialTheme.typography.bodySmall,
-                            color = textDim
+                            color = WorkoutTextDim
                         )
                     }
                     Spacer(modifier = Modifier.weight(1f))
@@ -4487,20 +4499,20 @@ private fun WorkoutDetailScreen(
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
-                                .background(vibrantGreen.copy(alpha = detailPulseAlpha), CircleShape)
+                                .background(WorkoutVibrantGreen.copy(alpha = detailPulseAlpha), CircleShape)
                         )
                         Text(
                             text = "Live",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.5.sp,
-                            color = vibrantGreen
+                            color = WorkoutVibrantGreen
                         )
                         IconButton(onClick = { isEditing = !isEditing }) {
                             Icon(
                                 imageVector = Icons.Rounded.Edit,
                                 contentDescription = "Toggle edit",
-                                tint = if (isEditing) vibrantGreen else textHigh
+                                tint = if (isEditing) WorkoutVibrantGreen else WorkoutTextHigh
                             )
                         }
                     }
@@ -4510,8 +4522,8 @@ private fun WorkoutDetailScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = cardShape,
-                    colors = CardDefaults.cardColors(containerColor = forestCard),
+                    shape = WorkoutCardShape,
+                    colors = CardDefaults.cardColors(containerColor = WorkoutForestCard),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                 ) {
                     Column(
@@ -4524,7 +4536,7 @@ private fun WorkoutDetailScreen(
                             Icon(
                                 imageVector = Icons.Rounded.Info,
                                 contentDescription = null,
-                                tint = vibrantGreen,
+                                tint = WorkoutVibrantGreen,
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
@@ -4532,14 +4544,14 @@ private fun WorkoutDetailScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Black,
                                 letterSpacing = 2.sp,
-                                color = vibrantGreen
+                                color = WorkoutVibrantGreen
                             )
                         }
                         Text(
                             text = workout?.notes?.takeIf { it.isNotBlank() }
                                 ?: "Review your session details. Tap the pencil to edit.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = textDim
+                            color = WorkoutTextDim
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             AssistChip(
@@ -4548,7 +4560,7 @@ private fun WorkoutDetailScreen(
                                 label = { Text("${workout?.items?.size ?: 0} exercises") },
                                 colors = AssistChipDefaults.assistChipColors(
                                     containerColor = Color.White.copy(alpha = 0.06f),
-                                    labelColor = textHigh
+                                    labelColor = WorkoutTextHigh
                                 )
                             )
                             AssistChip(
@@ -4557,7 +4569,7 @@ private fun WorkoutDetailScreen(
                                 label = { Text("Logged") },
                                 colors = AssistChipDefaults.assistChipColors(
                                     containerColor = Color.White.copy(alpha = 0.06f),
-                                    labelColor = textHigh
+                                    labelColor = WorkoutTextHigh
                                 )
                             )
                         }
@@ -4569,8 +4581,8 @@ private fun WorkoutDetailScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = cardShape,
-                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        shape = WorkoutCardShape,
+                        colors = CardDefaults.cardColors(containerColor = WorkoutForestCard),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                     ) {
                         Column(
@@ -4578,8 +4590,8 @@ private fun WorkoutDetailScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            CircularProgressIndicator(color = vibrantGreen)
-                            Text("Loading workout details...", color = textHigh)
+                            CircularProgressIndicator(color = WorkoutVibrantGreen)
+                            Text("Loading workout details...", color = WorkoutTextHigh)
                         }
                     }
                 }
@@ -4587,19 +4599,19 @@ private fun WorkoutDetailScreen(
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = cardShape,
-                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        shape = WorkoutCardShape,
+                        colors = CardDefaults.cardColors(containerColor = WorkoutForestCard),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("No exercises yet", style = MaterialTheme.typography.titleMedium, color = textHigh)
+                            Text("No exercises yet", style = MaterialTheme.typography.titleMedium, color = WorkoutTextHigh)
                             Text(
                                 "Add an exercise above to start logging sets.",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = textDim
+                                color = WorkoutTextDim
                             )
                         }
                     }
@@ -4635,7 +4647,7 @@ private fun WorkoutDetailScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(30.dp),
-                        colors = CardDefaults.cardColors(containerColor = forestCard),
+                        colors = CardDefaults.cardColors(containerColor = WorkoutForestCard),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
                     ) {
                         Box {
@@ -4643,7 +4655,7 @@ private fun WorkoutDetailScreen(
                                 modifier = Modifier
                                     .width(6.dp)
                                     .fillMaxHeight()
-                                    .background(if (isPrimary) vibrantGreen else Color.White.copy(alpha = 0.12f))
+                                    .background(if (isPrimary) WorkoutVibrantGreen else Color.White.copy(alpha = 0.12f))
                                     .align(Alignment.CenterStart)
                             )
                             Column(
@@ -4673,7 +4685,7 @@ private fun WorkoutDetailScreen(
                                             text = fullTitle,
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
-                                            color = textHigh,
+                                            color = WorkoutTextHigh,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier
@@ -4688,14 +4700,14 @@ private fun WorkoutDetailScreen(
                                             Text(
                                                 text = fullTitle,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                color = textDim
+                                                color = WorkoutTextDim
                                             )
                                         }
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        val timerAccent = if (timerRunning) vibrantGreen else textHigh.copy(alpha = 0.8f)
-                                        val timerSurface = if (timerRunning) vibrantGreen.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.06f)
-                                        val timerBorder = if (timerRunning) vibrantGreen.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f)
+                                        val timerAccent = if (timerRunning) WorkoutVibrantGreen else WorkoutTextHigh.copy(alpha = 0.8f)
+                                        val timerSurface = if (timerRunning) WorkoutVibrantGreen.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.06f)
+                                        val timerBorder = if (timerRunning) WorkoutVibrantGreen.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.08f)
                                         Surface(
                                             shape = RoundedCornerShape(20.dp),
                                             color = timerSurface,
@@ -4737,14 +4749,14 @@ private fun WorkoutDetailScreen(
                                         if (setTotal > 0) {
                                             Surface(
                                                 shape = RoundedCornerShape(20.dp),
-                                                color = vibrantGreen.copy(alpha = 0.12f),
-                                                border = BorderStroke(1.dp, vibrantGreen.copy(alpha = 0.4f))
+                                                color = WorkoutVibrantGreen.copy(alpha = 0.12f),
+                                                border = BorderStroke(1.dp, WorkoutVibrantGreen.copy(alpha = 0.4f))
                                             ) {
                                                 Text(
                                                     text = "Set 1/$setTotal",
                                                     style = MaterialTheme.typography.labelSmall,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = vibrantGreen,
+                                                    color = WorkoutVibrantGreen,
                                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                                 )
                                             }
@@ -4756,7 +4768,7 @@ private fun WorkoutDetailScreen(
                                     Text(
                                         text = "Preparing sets...",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = textDim
+                                        color = WorkoutTextDim
                                     )
                                 } else {
                                     setEdits.forEachIndexed { setIndex, entry ->
@@ -4771,26 +4783,26 @@ private fun WorkoutDetailScreen(
                                                     style = MaterialTheme.typography.labelSmall,
                                                     fontWeight = FontWeight.Black,
                                                     letterSpacing = 2.sp,
-                                                    color = if (isPrimary) vibrantGreen else textDim
+                                                    color = if (isPrimary) WorkoutVibrantGreen else WorkoutTextDim
                                                 )
                                                 if (isEditing && setEdits.size > 1) {
                                                     IconButton(onClick = { setEdits.remove(entry) }) {
                                                         Icon(
                                                             imageVector = Icons.Rounded.Close,
                                                             contentDescription = "Remove set",
-                                                            tint = textDim
+                                                            tint = WorkoutTextDim
                                                         )
                                                     }
                                                 } else {
                                                     Icon(
                                                         imageVector = Icons.Rounded.MoreVert,
                                                         contentDescription = null,
-                                                        tint = textDim
+                                                        tint = WorkoutTextDim
                                                     )
                                                 }
                                             }
                                             val textStyle = MaterialTheme.typography.titleMedium.copy(
-                                                color = textHigh,
+                                                color = WorkoutTextHigh,
                                                 fontWeight = FontWeight.Bold,
                                                 textAlign = TextAlign.Center
                                             )
@@ -4804,7 +4816,7 @@ private fun WorkoutDetailScreen(
                                                         style = MaterialTheme.typography.labelSmall,
                                                         fontWeight = FontWeight.Bold,
                                                         letterSpacing = 1.5.sp,
-                                                        color = textDim
+                                                        color = WorkoutTextDim
                                                     )
                                                     OutlinedTextField(
                                                         value = entry.weight,
@@ -4812,7 +4824,7 @@ private fun WorkoutDetailScreen(
                                                         placeholder = { Text("0") },
                                                         singleLine = true,
                                                         keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-                                                        shape = fieldShape,
+                                                        shape = WorkoutFieldShape,
                                                         colors = textFieldColors,
                                                         textStyle = textStyle,
                                                         readOnly = !isEditing
@@ -4827,7 +4839,7 @@ private fun WorkoutDetailScreen(
                                                         style = MaterialTheme.typography.labelSmall,
                                                         fontWeight = FontWeight.Bold,
                                                         letterSpacing = 1.5.sp,
-                                                        color = textDim
+                                                        color = WorkoutTextDim
                                                     )
                                                     OutlinedTextField(
                                                         value = entry.reps,
@@ -4839,7 +4851,7 @@ private fun WorkoutDetailScreen(
                                                         singleLine = true,
                                                         isError = entry.repsError,
                                                         keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-                                                        shape = fieldShape,
+                                                        shape = WorkoutFieldShape,
                                                         colors = textFieldColors,
                                                         textStyle = textStyle,
                                                         readOnly = !isEditing
@@ -4854,7 +4866,7 @@ private fun WorkoutDetailScreen(
                                                         style = MaterialTheme.typography.labelSmall,
                                                         fontWeight = FontWeight.Bold,
                                                         letterSpacing = 1.5.sp,
-                                                        color = textDim
+                                                        color = WorkoutTextDim
                                                     )
                                                     OutlinedTextField(
                                                         value = entry.rir,
@@ -4862,7 +4874,7 @@ private fun WorkoutDetailScreen(
                                                         placeholder = { Text("0") },
                                                         singleLine = true,
                                                         keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
-                                                        shape = fieldShape,
+                                                        shape = WorkoutFieldShape,
                                                         colors = textFieldColors,
                                                         textStyle = textStyle,
                                                         readOnly = !isEditing
@@ -4879,9 +4891,9 @@ private fun WorkoutDetailScreen(
                                             }
                                         }
                                     }
-                                    val addSetColor = if (isPrimary) vibrantGreen else textDim
-                                    val addSetBg = if (isPrimary) vibrantGreen.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.05f)
-                                    val addSetBorder = if (isPrimary) vibrantGreen.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.12f)
+                                    val addSetColor = if (isPrimary) WorkoutVibrantGreen else WorkoutTextDim
+                                    val addSetBg = if (isPrimary) WorkoutVibrantGreen.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.05f)
+                                    val addSetBorder = if (isPrimary) WorkoutVibrantGreen.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.12f)
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -4978,7 +4990,7 @@ private fun WorkoutDetailScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .background(Brush.verticalGradient(colors = listOf(Color.Transparent, forestBg.copy(alpha = 0.95f), forestBg)))
+                .background(Brush.verticalGradient(colors = listOf(Color.Transparent, WorkoutForestBg.copy(alpha = 0.95f), WorkoutForestBg)))
                 .padding(horizontal = 20.dp, vertical = 16.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -4995,8 +5007,8 @@ private fun WorkoutDetailScreen(
                         .fillMaxWidth()
                         .height(64.dp)
                         .clip(RoundedCornerShape(28.dp))
-                        .background(if (buttonEnabled) vibrantGreen else vibrantGreen.copy(alpha = 0.4f))
-                        .border(1.dp, vibrantGreen.copy(alpha = 0.25f), RoundedCornerShape(28.dp))
+                        .background(if (buttonEnabled) WorkoutVibrantGreen else WorkoutVibrantGreen.copy(alpha = 0.4f))
+                        .border(1.dp, WorkoutVibrantGreen.copy(alpha = 0.25f), RoundedCornerShape(28.dp))
                         .clickable(enabled = buttonEnabled) {
                             val updates = mutableListOf<WorkoutSetUpdateEntry>()
                             val newSets = mutableListOf<WorkoutSetEntry>()
@@ -5056,14 +5068,14 @@ private fun WorkoutDetailScreen(
                         if (state.isActionRunning) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
-                                color = forestBg,
+                                color = WorkoutForestBg,
                                 strokeWidth = 2.dp
                             )
                         } else {
                             Icon(
                                 imageVector = Icons.Rounded.Check,
                                 contentDescription = null,
-                                tint = forestBg
+                                tint = WorkoutForestBg
                             )
                         }
                         Spacer(modifier = Modifier.width(10.dp))
@@ -5071,7 +5083,7 @@ private fun WorkoutDetailScreen(
                             text = if (state.isActionRunning) "Saving..." else "Save Workout",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Black,
-                            color = forestBg
+                            color = WorkoutForestBg
                         )
                     }
                 }
