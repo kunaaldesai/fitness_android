@@ -3,17 +3,27 @@ package com.example.fitnesstracker.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitnesstracker.data.FitnessRepository
+import com.example.fitnesstracker.data.remote.CreateWorkoutRequest
 import com.example.fitnesstracker.data.remote.Exercise
 import com.example.fitnesstracker.data.remote.User
 import com.example.fitnesstracker.data.remote.Workout
+import com.example.fitnesstracker.data.remote.WorkoutExerciseRequest
+import com.example.fitnesstracker.data.remote.WorkoutItem
 import com.example.fitnesstracker.data.remote.WorkoutPlan
+import com.example.fitnesstracker.data.remote.WorkoutSet
+import com.example.fitnesstracker.data.remote.WorkoutSetRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.UUID
 
 data class FitnessUiState(
     val user: User? = null,
@@ -117,6 +127,10 @@ class MainViewModel(
             val alreadySelected = _uiState.value.selectedWorkout?.id == workoutId
             if (!force && alreadySelected) return@launch
 
+            if (workoutId == _uiState.value.activeWorkoutId && _uiState.value.selectedWorkout?.id == workoutId) {
+                return@launch
+            }
+
             _uiState.update {
                 it.copy(
                     isActionRunning = true,
@@ -154,24 +168,22 @@ class MainViewModel(
             _uiState.update { it.copy(errorMessage = "Date is required (YYYY-MM-DD).") }
             return
         }
-        viewModelScope.launch {
-            _uiState.update { it.copy(isActionRunning = true, errorMessage = null, recentlyCreatedWorkoutId = null) }
-            val result = repository.createWorkout(
-                date = trimmedDate,
-                notes = notes?.takeUnless { it.isNullOrBlank() },
-                timezone = timezone
-            )
-            result.fold(
-                onSuccess = { id ->
-                    refreshAfterAction(
-                        selectWorkoutId = id,
-                        infoMessage = "Workout created",
-                        createdWorkoutId = id
-                    )
-                },
-                onFailure = { error ->
-                    _uiState.update { it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not create workout")) }
-                }
+
+        val tempId = UUID.randomUUID().toString()
+        val newWorkout = Workout(
+            id = tempId,
+            date = trimmedDate,
+            notes = notes,
+            timezone = timezone,
+            items = emptyList()
+        )
+
+        _uiState.update {
+            it.copy(
+                activeWorkoutId = tempId,
+                selectedWorkout = newWorkout,
+                selectedWorkoutId = tempId,
+                recentlyCreatedWorkoutId = tempId
             )
         }
     }
@@ -179,32 +191,77 @@ class MainViewModel(
     fun startWorkoutFromPlan(planId: String) {
         val date = LocalDate.now().toString()
         val timezone = ZoneId.systemDefault().id
+
         viewModelScope.launch {
             _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
-            val result = repository.startWorkout(planId, date, timezone)
-            result.fold(
-                onSuccess = { workoutId ->
+            val planResult = repository.fetchWorkoutTemplate(planId)
+
+            planResult.fold(
+                onSuccess = { plan ->
+                    val tempId = UUID.randomUUID().toString()
+                    val items = parseExercises(plan.exercises)
+                    val newWorkout = Workout(
+                        id = tempId,
+                        date = date,
+                        timezone = timezone,
+                        items = items
+                    )
+
                     _uiState.update {
                         it.copy(
-                            activeWorkoutId = workoutId,
-                            activeWorkoutPlanId = planId
+                            activeWorkoutId = tempId,
+                            activeWorkoutPlanId = planId,
+                            selectedWorkout = newWorkout,
+                            selectedWorkoutId = tempId,
+                            isActionRunning = false,
+                            infoMessage = "Workout started locally"
                         )
                     }
-                    refreshAfterAction(
-                        selectWorkoutId = workoutId,
-                        infoMessage = "Workout started"
-                    )
                 },
                 onFailure = { error ->
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not start workout")
+                            errorMessage = error.userFacing("Could not load workout plan")
                         )
                     }
                 }
             )
         }
+    }
+
+    private fun parseExercises(element: kotlinx.serialization.json.JsonElement?): List<WorkoutItem> {
+        if (element == null) return emptyList()
+        val items = mutableListOf<WorkoutItem>()
+        if (element is JsonArray) {
+            element.forEachIndexed { index, item ->
+                val tempItemId = UUID.randomUUID().toString()
+                if (item is JsonObject) {
+                    val exerciseId = (item["exerciseId"] as? JsonPrimitive)?.contentOrNull
+                        ?: (item["id"] as? JsonPrimitive)?.contentOrNull
+                    val name = (item["name"] as? JsonPrimitive)?.contentOrNull
+                        ?: (item["title"] as? JsonPrimitive)?.contentOrNull
+                    val notes = (item["notes"] as? JsonPrimitive)?.contentOrNull
+
+                    if (exerciseId != null || name != null) {
+                        items.add(WorkoutItem(
+                            id = tempItemId,
+                            exerciseId = exerciseId,
+                            name = name,
+                            notes = notes,
+                            order = index
+                        ))
+                    }
+                } else if (item is JsonPrimitive && item.isString) {
+                    items.add(WorkoutItem(
+                        id = tempItemId,
+                        name = item.content,
+                        order = index
+                    ))
+                }
+            }
+        }
+        return items
     }
 
     fun createWorkoutPlan(
@@ -277,57 +334,19 @@ class MainViewModel(
         notes: String?,
         order: Int?
     ) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
+        val active = _uiState.value.selectedWorkout
+        if (active != null && active.id == workoutId) {
             val exerciseName = _uiState.value.exercises.firstOrNull { it.id == exerciseId }?.name
-            val result = repository.addWorkoutItem(
-                workoutId = workoutId,
+            val newItem = WorkoutItem(
+                id = UUID.randomUUID().toString(),
                 exerciseId = exerciseId,
-                notes = notes?.takeUnless { it.isNullOrBlank() },
-                order = order,
-                exerciseName = exerciseName
+                name = exerciseName,
+                notes = notes,
+                order = order ?: active.items.size
             )
-            result.fold(
-                onSuccess = {
-                    selectWorkout(workoutId, force = true, infoMessage = "Exercise added to workout")
-                },
-                onFailure = { error ->
-                    _uiState.update { it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not add exercise to workout")) }
-                }
-            )
-        }
-    }
-
-    fun addSet(
-        workoutId: String,
-        itemId: String,
-        reps: Int,
-        weight: Double?,
-        rir: Double?,
-        rpe: Double?,
-        notes: String?,
-        isPR: Boolean
-    ) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
-            val result = repository.addSet(
-                workoutId = workoutId,
-                itemId = itemId,
-                reps = reps,
-                weight = weight,
-                rir = rir,
-                rpe = rpe,
-                notes = notes?.takeUnless { it.isNullOrBlank() },
-                isPR = isPR
-            )
-            result.fold(
-                onSuccess = {
-                    selectWorkout(workoutId, force = true, infoMessage = "Set added")
-                },
-                onFailure = { error ->
-                    _uiState.update { it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not add set")) }
-                }
-            )
+            val updatedItems = active.items + newItem
+            val updatedWorkout = active.copy(items = updatedItems)
+            _uiState.update { it.copy(selectedWorkout = updatedWorkout) }
         }
     }
 
@@ -336,73 +355,86 @@ class MainViewModel(
             _uiState.update { it.copy(errorMessage = "Add at least one set before saving.") }
             return
         }
-        viewModelScope.launch {
-            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
-            var failure: Throwable? = null
-            for (entry in entries) {
-                val result = repository.addSet(
-                    workoutId = workoutId,
-                    itemId = entry.itemId,
-                    reps = entry.reps,
-                    weight = entry.weight,
-                    rir = entry.rir,
-                    rpe = entry.rpe,
-                    notes = entry.notes,
-                    isPR = entry.isPr
-                )
-                if (result.isFailure) {
-                    failure = result.exceptionOrNull()
-                    break
-                }
-            }
-            if (failure == null) {
-                refreshAfterAction(
-                    selectWorkoutId = workoutId,
-                    infoMessage = "Workout saved",
-                    completedWorkoutId = workoutId
-                )
-            } else {
-                _uiState.update {
-                    it.copy(
-                        isActionRunning = false,
-                        errorMessage = failure.userFacing("Could not save workout")
+
+        val active = _uiState.value.selectedWorkout
+        if (active == null || active.id != workoutId) {
+            _uiState.update { it.copy(errorMessage = "Active workout mismatch.") }
+            return
+        }
+
+        val itemsMap = active.items.associateBy { it.id }.toMutableMap()
+
+        val entriesByItem = entries.groupBy { it.itemId }
+
+        entriesByItem.forEach { (itemId, setEntries) ->
+            val item = itemsMap[itemId]
+            if (item != null) {
+                val newSets = setEntries.map { entry ->
+                    WorkoutSet(
+                        id = UUID.randomUUID().toString(),
+                        reps = entry.reps,
+                        weight = entry.weight,
+                        rir = entry.rir,
+                        rpe = entry.rpe,
+                        isPR = entry.isPr,
+                        notes = entry.notes
                     )
                 }
+
+                val updatedSets = item.sets + newSets
+                itemsMap[itemId] = item.copy(sets = updatedSets)
             }
         }
+
+        val updatedWorkout = active.copy(items = itemsMap.values.toList())
+        saveWorkout(updatedWorkout)
     }
 
-    fun updateSet(
-        workoutId: String,
-        itemId: String,
-        setId: String,
-        reps: Int?,
-        weight: Double?,
-        rir: Double?,
-        rpe: Double?,
-        notes: String?,
-        isPr: Boolean?
-    ) {
+    private fun saveWorkout(workout: Workout) {
         viewModelScope.launch {
             _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
-            val result = repository.updateSet(
-                workoutId = workoutId,
-                itemId = itemId,
-                setId = setId,
-                reps = reps,
-                weight = weight,
-                rir = rir,
-                rpe = rpe,
-                notes = notes?.takeUnless { it.isNullOrBlank() },
-                isPr = isPr
+
+            val request = CreateWorkoutRequest(
+                date = workout.date,
+                notes = workout.notes,
+                timezone = workout.timezone,
+                workoutId = _uiState.value.activeWorkoutPlanId,
+                exercises = workout.items.map { item ->
+                    WorkoutExerciseRequest(
+                        exerciseId = item.exerciseId,
+                        name = item.name,
+                        notes = item.notes,
+                        sets = item.sets.map { set ->
+                            WorkoutSetRequest(
+                                id = if (set.id.length > 30) null else set.id,
+                                reps = set.reps,
+                                weight = set.weight,
+                                rir = set.rir,
+                                rpe = set.rpe,
+                                isPR = set.isPR,
+                                notes = set.notes
+                            )
+                        }
+                    )
+                }
             )
+
+            val result = repository.createWorkout(request)
             result.fold(
-                onSuccess = {
-                    selectWorkout(workoutId, force = true, infoMessage = "Set updated")
+                onSuccess = { id ->
+                    refreshAfterAction(
+                        selectWorkoutId = id,
+                        infoMessage = "Workout saved",
+                        completedWorkoutId = id
+                    )
+                    _uiState.update { it.copy(activeWorkoutId = null, activeWorkoutPlanId = null) }
                 },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not update set"))
+                        it.copy(
+                            isActionRunning = false,
+                            errorMessage = error.userFacing("Could not save workout")
+                        )
                     }
                 }
             )
@@ -418,51 +450,93 @@ class MainViewModel(
             _uiState.update { it.copy(errorMessage = "No changes to save.") }
             return
         }
-        viewModelScope.launch {
-            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
-            var failure: Throwable? = null
-            for (entry in newSets) {
-                val result = repository.addSet(
-                    workoutId = workoutId,
-                    itemId = entry.itemId,
+
+        val active = _uiState.value.selectedWorkout
+        if (active == null || active.id != workoutId) {
+            _uiState.update { it.copy(errorMessage = "Workout mismatch.") }
+            return
+        }
+
+        val itemsMap = active.items.associateBy { it.id }.toMutableMap()
+
+        updates.forEach { update ->
+            val item = itemsMap[update.itemId]
+            if (item != null) {
+                val updatedSets = item.sets.map { set ->
+                    if (set.id == update.setId) {
+                        set.copy(
+                            reps = update.reps,
+                            weight = update.weight,
+                            rir = update.rir
+                        )
+                    } else set
+                }
+                itemsMap[update.itemId] = item.copy(sets = updatedSets)
+            }
+        }
+
+        newSets.forEach { entry ->
+             val item = itemsMap[entry.itemId]
+             if (item != null) {
+                 val newSet = WorkoutSet(
+                    id = UUID.randomUUID().toString(),
                     reps = entry.reps,
                     weight = entry.weight,
                     rir = entry.rir,
                     rpe = entry.rpe,
-                    notes = entry.notes,
-                    isPR = entry.isPr
-                )
-                if (result.isFailure) {
-                    failure = result.exceptionOrNull()
-                    break
-                }
-            }
-            if (failure == null) {
-                for (entry in updates) {
-                    val result = repository.updateSet(
-                        workoutId = workoutId,
-                        itemId = entry.itemId,
-                        setId = entry.setId,
-                        reps = entry.reps,
-                        weight = entry.weight,
-                        rir = entry.rir,
-                        rpe = null,
-                        notes = null,
-                        isPr = null
+                    isPR = entry.isPr,
+                    notes = entry.notes
+                 )
+                 itemsMap[entry.itemId] = item.copy(sets = item.sets + newSet)
+             }
+        }
+
+        val finalWorkout = active.copy(items = itemsMap.values.toList())
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
+
+            val request = CreateWorkoutRequest(
+                date = finalWorkout.date,
+                notes = finalWorkout.notes,
+                timezone = finalWorkout.timezone,
+                exercises = finalWorkout.items.map { item ->
+                    WorkoutExerciseRequest(
+                        exerciseId = item.exerciseId,
+                        name = item.name,
+                        notes = item.notes,
+                        sets = item.sets.map { set ->
+                             WorkoutSetRequest(
+                                id = if (set.id.length > 30) null else set.id,
+                                reps = set.reps,
+                                weight = set.weight,
+                                rir = set.rir,
+                                rpe = set.rpe,
+                                isPR = set.isPR,
+                                notes = set.notes
+                            )
+                        }
                     )
-                    if (result.isFailure) {
-                        failure = result.exceptionOrNull()
-                        break
+                }
+            )
+
+            val result = repository.updateWorkout(workoutId, request)
+            result.fold(
+                onSuccess = {
+                     refreshAfterAction(
+                        selectWorkoutId = workoutId,
+                        infoMessage = "Workout updated"
+                     )
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isActionRunning = false,
+                            errorMessage = error.userFacing("Could not update workout")
+                        )
                     }
                 }
-            }
-            if (failure == null) {
-                selectWorkout(workoutId, force = true, infoMessage = "Workout updated")
-            } else {
-                _uiState.update {
-                    it.copy(isActionRunning = false, errorMessage = failure.userFacing("Could not update workout"))
-                }
-            }
+            )
         }
     }
 

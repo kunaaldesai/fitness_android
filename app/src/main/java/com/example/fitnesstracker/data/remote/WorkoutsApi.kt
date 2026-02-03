@@ -19,6 +19,11 @@ interface WorkoutsApi {
     @GET("getAllWorkouts")
     suspend fun getAllWorkouts(): List<WorkoutPlan>
 
+    @GET("getWorkout/{id}")
+    suspend fun getWorkoutTemplate(
+        @Path("id") id: String
+    ): WorkoutPlan
+
     @GET("users/{userId}/workouts/{workoutId}")
     suspend fun getWorkoutDetail(
         @Path("userId") userId: String,
@@ -33,10 +38,11 @@ interface WorkoutsApi {
         @Body body: CreateWorkoutRequest
     ): IdResponse
 
-    @POST("users/{userId}/workouts/start")
-    suspend fun startWorkout(
+    @PUT("users/{userId}/workouts/{workoutId}")
+    suspend fun updateWorkout(
         @Path("userId") userId: String,
-        @Body body: StartWorkoutRequest
+        @Path("workoutId") workoutId: String,
+        @Body body: CreateWorkoutRequest
     ): IdResponse
 
     @POST("createWorkout")
@@ -55,28 +61,4 @@ interface WorkoutsApi {
         @Path("userId") userId: String,
         @Query("includeArchived") includeArchived: Boolean = false
     ): List<Exercise>
-
-    @POST("users/{userId}/workouts/{workoutId}/items")
-    suspend fun addWorkoutItem(
-        @Path("userId") userId: String,
-        @Path("workoutId") workoutId: String,
-        @Body body: CreateWorkoutItemRequest
-    ): IdResponse
-
-    @POST("users/{userId}/workouts/{workoutId}/items/{itemId}/sets")
-    suspend fun addSet(
-        @Path("userId") userId: String,
-        @Path("workoutId") workoutId: String,
-        @Path("itemId") itemId: String,
-        @Body body: CreateSetRequest
-    ): IdResponse
-
-    @PUT("users/{userId}/workouts/{workoutId}/items/{itemId}/sets/{setId}")
-    suspend fun updateSet(
-        @Path("userId") userId: String,
-        @Path("workoutId") workoutId: String,
-        @Path("itemId") itemId: String,
-        @Path("setId") setId: String,
-        @Body body: UpdateSetRequest
-    ): IdResponse
 }
