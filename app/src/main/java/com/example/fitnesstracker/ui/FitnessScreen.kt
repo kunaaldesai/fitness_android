@@ -57,13 +57,13 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.FitnessCenter
@@ -454,7 +454,7 @@ private fun HomeScreen(
     )
     val activityItems = remember(workoutsWithSets) {
         if (workoutsWithSets.isNotEmpty()) {
-            val icons = listOf(Icons.Rounded.DirectionsRun, Icons.Rounded.SelfImprovement, Icons.Rounded.Pool)
+            val icons = listOf(Icons.AutoMirrored.Rounded.DirectionsRun, Icons.Rounded.SelfImprovement, Icons.Rounded.Pool)
             val accents = listOf(Orange500, Purple500, Blue500)
             workoutsWithSets.sortedByDescending { it.date ?: "" }
                 .take(3)
@@ -476,7 +476,7 @@ private fun HomeScreen(
                     subtitle = "Yesterday, 6:30 AM",
                     primary = "5.2 km",
                     secondary = "32 min",
-                    icon = Icons.Rounded.DirectionsRun,
+                    icon = Icons.AutoMirrored.Rounded.DirectionsRun,
                     accent = Orange500
                 ),
                 ActivityItem(
@@ -2409,7 +2409,7 @@ private fun CreateWorkoutScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
                     Column {
                         Text("Create workout", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -2630,7 +2630,7 @@ private fun CreateWorkoutPlanScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White)
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Box(
@@ -3756,7 +3756,7 @@ private fun StartWorkoutScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = WorkoutTextHigh)
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = WorkoutTextHigh)
                     }
                     Column {
                         Text(
@@ -4238,7 +4238,7 @@ private fun WorkoutHistoryScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
                     Column {
                         Text(
@@ -4471,7 +4471,7 @@ private fun WorkoutDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = WorkoutTextHigh)
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = WorkoutTextHigh)
                     }
                     Column {
                         Text(
@@ -5618,7 +5618,7 @@ private fun CreateExerciseScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
                     Column {
                         Text("Create exercise", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
