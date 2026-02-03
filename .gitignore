@@ -24,6 +24,4 @@ app/build/
 google-services.json
 *.keystore
 *.jks
-users.py
-workouts_helpers.py
-workouts.py
+
