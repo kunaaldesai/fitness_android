@@ -2,6 +2,7 @@ package com.example.fitnesstracker.ui
 
 import com.example.fitnesstracker.MainDispatcherRule
 import com.example.fitnesstracker.data.FitnessRepository
+import com.example.fitnesstracker.data.remote.CreateWorkoutRequest
 import com.example.fitnesstracker.data.remote.Exercise
 import com.example.fitnesstracker.data.remote.User
 import com.example.fitnesstracker.data.remote.Workout
@@ -16,6 +17,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -70,26 +72,13 @@ class MainViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals("Date is required (YYYY-MM-DD).", state.errorMessage)
-        coVerify(exactly = 0) { repository.createWorkout(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.createWorkout(any()) }
     }
 
     @Test
-    fun createWorkout_success_updatesStateAndSelectsWorkout() = runTest(mainDispatcherRule.dispatcher) {
+    fun createWorkout_success_updatesLocalStateOnly() = runTest(mainDispatcherRule.dispatcher) {
         val repository = mockk<FitnessRepository>()
-        val workout = Workout(id = "workout-1", date = "2025-01-01")
-        coEvery { repository.fetchUser() } returns Result.success(User(id = "user-1", firstName = "Sam"))
-        coEvery { repository.fetchWorkouts(any()) } returnsMany listOf(
-            Result.success(emptyList()),
-            Result.success(listOf(workout))
-        )
-        coEvery { repository.fetchWorkoutPlans() } returns Result.success(emptyList())
-        coEvery { repository.fetchExercises(any()) } returnsMany listOf(
-            Result.success(emptyList()),
-            Result.success(emptyList())
-        )
-        coEvery { repository.fetchWorkoutDetail("workout-1") } returns Result.success(workout)
-        coEvery { repository.createWorkout(any(), any(), any(), any(), any()) } returns Result.success("workout-1")
-
+        stubBaseResponses(repository = repository)
         val viewModel = MainViewModel(repository)
         advanceUntilIdle()
 
@@ -97,54 +86,83 @@ class MainViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("workout-1", state.recentlyCreatedWorkoutId)
-        assertEquals("Workout created", state.infoMessage)
-        assertEquals("workout-1", state.selectedWorkout?.id)
-        assertFalse(state.isActionRunning)
+        assertNotNull(state.activeWorkoutId)
+        assertEquals(state.activeWorkoutId, state.selectedWorkoutId)
+        assertEquals("2025-01-01", state.selectedWorkout?.date)
+        assertEquals("Notes", state.selectedWorkout?.notes)
+        // Verify repository was NOT called
+        coVerify(exactly = 0) { repository.createWorkout(any()) }
     }
 
     @Test
-    fun addItemToWorkout_usesExerciseNameFromState() = runTest(mainDispatcherRule.dispatcher) {
+    fun addItemToWorkout_updatesLocalState() = runTest(mainDispatcherRule.dispatcher) {
         val repository = mockk<FitnessRepository>()
         val exercise = Exercise(id = "exercise-1", name = "Bench Press")
         stubBaseResponses(repository = repository, exercises = listOf(exercise))
-        coEvery { repository.addWorkoutItem(any(), any(), any(), any(), any()) } returns Result.success("item-1")
-        coEvery { repository.fetchWorkoutDetail("workout-1") } returns Result.success(Workout(id = "workout-1"))
 
         val viewModel = MainViewModel(repository)
         advanceUntilIdle()
 
+        // First create a local workout
+        viewModel.createWorkout("2025-01-01", "Notes")
+        val activeId = viewModel.uiState.value.activeWorkoutId!!
+
         viewModel.addItemToWorkout(
-            workoutId = "workout-1",
+            workoutId = activeId,
             exerciseId = "exercise-1",
             notes = "Keep form tight",
             order = 1
         )
         advanceUntilIdle()
 
-        coVerify(exactly = 1) {
-            repository.addWorkoutItem(
-                workoutId = "workout-1",
-                exerciseId = "exercise-1",
-                notes = "Keep form tight",
-                order = 1,
-                exerciseName = "Bench Press"
-            )
-        }
+        val item = viewModel.uiState.value.selectedWorkout?.items?.firstOrNull()
+        assertNotNull(item)
+        assertEquals("exercise-1", item?.exerciseId)
+        assertEquals("Bench Press", item?.name)
+        assertEquals("Keep form tight", item?.notes)
+
+        // Verify repository NOT called (deprecated method)
+        // We can't verify addWorkoutItem because it's removed from repository/api in my plan,
+        // but if I removed it, I can't verify it wasn't called.
+        // I can verify createWorkout wasn't called yet.
+        coVerify(exactly = 0) { repository.createWorkout(any()) }
     }
 
     @Test
-    fun logWorkoutSets_emptyEntries_setsError() = runTest(mainDispatcherRule.dispatcher) {
+    fun logWorkoutSets_savesFullWorkoutToRepository() = runTest(mainDispatcherRule.dispatcher) {
         val repository = mockk<FitnessRepository>()
         stubBaseResponses(repository = repository)
+        coEvery { repository.createWorkout(any()) } returns Result.success("server-id-123")
+        coEvery { repository.fetchWorkoutDetail("server-id-123") } returns Result.success(Workout(id="server-id-123"))
+
         val viewModel = MainViewModel(repository)
         advanceUntilIdle()
 
-        viewModel.logWorkoutSets(workoutId = "workout-1", entries = emptyList())
+        // Create local workout
+        viewModel.createWorkout("2025-01-01", "Notes")
+        val activeId = viewModel.uiState.value.activeWorkoutId!!
 
-        val state = viewModel.uiState.value
-        assertEquals("Add at least one set before saving.", state.errorMessage)
-        coVerify(exactly = 0) { repository.addSet(any(), any(), any(), any(), any(), any(), any(), any()) }
+        // Add item
+        viewModel.addItemToWorkout(activeId, "exercise-1", null, 0)
+        val itemId = viewModel.uiState.value.selectedWorkout!!.items.first().id
+
+        // Log sets (Save)
+        val entries = listOf(WorkoutSetEntry(itemId, 10, 100.0, 2.0))
+        viewModel.logWorkoutSets(workoutId = activeId, entries = entries)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            repository.createWorkout(match { request ->
+                request.date == "2025-01-01" &&
+                request.notes == "Notes" &&
+                request.exercises.size == 1 &&
+                request.exercises[0].sets.size == 1 &&
+                request.exercises[0].sets[0].reps == 10
+            })
+        }
+
+        assertEquals("Workout saved", viewModel.uiState.value.infoMessage)
+        assertEquals("server-id-123", viewModel.uiState.value.selectedWorkoutId)
     }
 
     @Test
@@ -162,8 +180,6 @@ class MainViewModelTest {
 
         val state = viewModel.uiState.value
         assertEquals("No changes to save.", state.errorMessage)
-        coVerify(exactly = 0) { repository.addSet(any(), any(), any(), any(), any(), any(), any(), any()) }
-        coVerify(exactly = 0) { repository.updateSet(any(), any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
     private fun stubBaseResponses(

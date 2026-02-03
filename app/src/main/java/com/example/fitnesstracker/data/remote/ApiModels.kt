@@ -62,7 +62,7 @@ data class Workout(
     val endTime: String? = null,
     val notes: String? = null,
     val timezone: String? = null,
-    val items: List<WorkoutItem> = emptyList(),
+    @SerialName("exercises") val items: List<WorkoutItem> = emptyList(),
     @SerialName("createdAt") val createdAt: JsonElement? = null,
     @SerialName("updatedAt") val updatedAt: JsonElement? = null
 )
@@ -96,10 +96,29 @@ data class CreateWorkoutPlanRequest(
 @Serializable
 data class CreateWorkoutRequest(
     val date: String? = null,
-    val startTime: String? = null,
-    val endTime: String? = null,
     val notes: String? = null,
-    val timezone: String? = null
+    val timezone: String? = null,
+    @SerialName("workout_id") val workoutId: String? = null,
+    val exercises: List<WorkoutExerciseRequest> = emptyList()
+)
+
+@Serializable
+data class WorkoutExerciseRequest(
+    val exerciseId: String? = null,
+    val name: String? = null,
+    val notes: String? = null,
+    val sets: List<WorkoutSetRequest> = emptyList()
+)
+
+@Serializable
+data class WorkoutSetRequest(
+    val id: String? = null,
+    val reps: Int? = null,
+    val weight: Double? = null,
+    val rir: Double? = null,
+    val rpe: Double? = null,
+    @SerialName("isPR") val isPR: Boolean? = null,
+    val notes: String? = null
 )
 
 @Serializable
@@ -109,42 +128,6 @@ data class CreateExerciseRequest(
     val equipment: String? = null,
     val notes: String? = null,
     val archived: Boolean = false
-)
-
-@Serializable
-data class CreateWorkoutItemRequest(
-    val exerciseId: String,
-    val name: String? = null,
-    val notes: String? = null,
-    val order: Int? = null
-)
-
-@Serializable
-data class CreateSetRequest(
-    val reps: Int,
-    val weight: Double? = null,
-    val rir: Double? = null,
-    val rpe: Double? = null,
-    val notes: String? = null,
-    val isPR: Boolean? = null
-)
-
-@Serializable
-data class StartWorkoutRequest(
-    @SerialName("workout_id") val workoutId: String,
-    val date: String? = null,
-    val timezone: String? = null,
-    val notes: String? = null
-)
-
-@Serializable
-data class UpdateSetRequest(
-    val reps: Int? = null,
-    val weight: Double? = null,
-    val rir: Double? = null,
-    val rpe: Double? = null,
-    val notes: String? = null,
-    @SerialName("isPR") val isPr: Boolean? = null
 )
 
 @Serializable
