@@ -21,6 +21,7 @@ FitnessTracker/
 │  │  │  │  │     ├─ UsersApi.kt           # User endpoints
 │  │  │  │  │     └─ WorkoutsApi.kt        # Workout endpoints
 │  │  │  │  └─ ui/
+│  │  │  │     ├─ AnimationUtils.kt        # Shared animation components
 │  │  │  │     ├─ FitnessScreen.kt
 │  │  │  │     ├─ ProfileScreen.kt         # Compose UI + navigation shell
 │  │  │  │     ├─ MainViewModel.kt         # UI state + actions

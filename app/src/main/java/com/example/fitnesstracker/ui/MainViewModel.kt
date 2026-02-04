@@ -90,8 +90,9 @@ class MainViewModel(
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
-                        ?: workoutsResult.exceptionOrNull()?.message
+                    errorMessage = userResult.exceptionOrNull()?.let { e ->
+                        if (e is retrofit2.HttpException && e.code() == 403) null else e.message
+                    } ?: workoutsResult.exceptionOrNull()?.message
                         ?: workoutPlansResult.exceptionOrNull()?.message
                         ?: exercisesResult.exceptionOrNull()?.message
                 )
