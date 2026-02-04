@@ -21,7 +21,8 @@ FitnessTracker/
 │  │  │  │  │     ├─ UsersApi.kt           # User endpoints
 │  │  │  │  │     └─ WorkoutsApi.kt        # Workout endpoints
 │  │  │  │  └─ ui/
-│  │  │  │     ├─ FitnessScreen.kt         # Compose UI + navigation shell
+│  │  │  │     ├─ FitnessScreen.kt
+│  │  │  │     ├─ ProfileScreen.kt         # Compose UI + navigation shell
 │  │  │  │     ├─ MainViewModel.kt         # UI state + actions
 │  │  │  │     └─ theme/                   # Compose theme + colors + typography
 │  │  │  └─ res/                           # Android resources (strings, icons, etc.)

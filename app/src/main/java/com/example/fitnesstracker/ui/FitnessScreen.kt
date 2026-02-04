@@ -273,6 +273,7 @@ sealed interface FitnessDestination {
     data class WorkoutDetail(val id: String) : FitnessDestination
     data object WorkoutHistory : FitnessDestination
     data object CreateExercise : FitnessDestination
+    data object Profile : FitnessDestination
 }
 
 @Composable
@@ -281,7 +282,7 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     var destination by remember { mutableStateOf<FitnessDestination>(FitnessDestination.Home) }
     val isHome = destination == FitnessDestination.Home
-    val showBottomNav = destination == FitnessDestination.Home || destination == FitnessDestination.Explore
+    val showBottomNav = destination == FitnessDestination.Home || destination == FitnessDestination.Explore || destination == FitnessDestination.Profile
 
     state.errorMessage?.let { message ->
         LaunchedEffect(message) {
@@ -324,6 +325,7 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
                 val selectedIndex = when (destination) {
                     FitnessDestination.Home -> 0
                     FitnessDestination.Explore -> 1
+                    FitnessDestination.Profile -> 3
                     else -> 0
                 }
                 BottomNavBar(
@@ -332,6 +334,7 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
                         destination = when (index) {
                             0 -> FitnessDestination.Home
                             1 -> FitnessDestination.Explore
+                            3 -> FitnessDestination.Profile
                             else -> destination
                         }
                     }
@@ -409,6 +412,12 @@ fun FitnessApp(viewModel: MainViewModel = viewModel()) {
                     viewModel.selectWorkout(workoutId)
                     destination = FitnessDestination.WorkoutDetail(workoutId)
                 },
+                modifier = Modifier.padding(padding)
+            )
+
+            FitnessDestination.Profile -> ProfileScreen(
+                state = state,
+                onEditProfile = viewModel::updateUser,
                 modifier = Modifier.padding(padding)
             )
 

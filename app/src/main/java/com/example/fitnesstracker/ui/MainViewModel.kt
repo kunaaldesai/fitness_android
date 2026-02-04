@@ -330,6 +330,27 @@ class MainViewModel(
         }
     }
 
+    fun updateUser(firstName: String, lastName: String, bio: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionRunning = true, errorMessage = null) }
+            val result = repository.updateUser(firstName, lastName, bio)
+            result.fold(
+                onSuccess = {
+                    refreshEverything()
+                    _uiState.update { it.copy(infoMessage = "Profile updated") }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isActionRunning = false,
+                            errorMessage = error.userFacing("Could not update profile")
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     fun addItemToWorkout(
         workoutId: String,
         exerciseId: String,
