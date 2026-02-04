@@ -111,21 +111,27 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
-                ProfileHeader(
-                    user = user,
-                    onEditClick = { showEditDialog = true }
-                )
+                StaggeredItem(delayMillis = 0) {
+                    ProfileHeader(
+                        user = user,
+                        onEditClick = { showEditDialog = true }
+                    )
+                }
             }
 
             item {
-                StatsRow(
-                    totalWorkouts = totalWorkouts,
-                    totalSets = totalSets
-                )
+                StaggeredItem(delayMillis = 100) {
+                    StatsRow(
+                        totalWorkouts = totalWorkouts,
+                        totalSets = totalSets
+                    )
+                }
             }
 
             item {
-                SettingsSection()
+                StaggeredItem(delayMillis = 200) {
+                    SettingsSection()
+                }
             }
 
             item {
