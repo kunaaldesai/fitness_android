@@ -7,6 +7,7 @@ import com.example.fitnesstracker.data.remote.CreateWorkoutRequest
 import com.example.fitnesstracker.data.remote.Exercise
 import com.example.fitnesstracker.data.remote.IdResponse
 import com.example.fitnesstracker.data.remote.NetworkModule
+import com.example.fitnesstracker.data.remote.UpdateUserRequest
 import com.example.fitnesstracker.data.remote.User
 import com.example.fitnesstracker.data.remote.UsersApi
 import com.example.fitnesstracker.data.remote.Workout
@@ -20,6 +21,13 @@ class FitnessRepository(
 ) {
 
     suspend fun fetchUser(): Result<User> = runCatching { usersApi.getUser(userId) }
+
+    suspend fun updateUser(firstName: String, lastName: String, bio: String): Result<Unit> = runCatching {
+        usersApi.updateUser(
+            userId,
+            UpdateUserRequest(firstName = firstName, lastName = lastName, bio = bio)
+        )
+    }
 
     suspend fun fetchExercises(includeArchived: Boolean = false): Result<List<Exercise>> =
         runCatching { workoutsApi.getExercises(userId, includeArchived) }
@@ -83,6 +91,6 @@ class FitnessRepository(
         }
 
     private fun IdResponse.requireId(action: String): String {
-        return id ?: error("Missing id in $action response")
+        return id ?: error("Missing id in  response")
     }
 }
