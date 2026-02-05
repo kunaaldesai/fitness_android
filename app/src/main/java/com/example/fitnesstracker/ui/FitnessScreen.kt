@@ -711,32 +711,6 @@ private fun ExploreScreen(
 }
 
 @Composable
-private fun StaggeredItem(
-    delayMillis: Int,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    var visible by rememberSaveable { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (!visible) {
-            delay(delayMillis.toLong())
-            visible = true
-        }
-    }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(animationSpec = tween(durationMillis = 500)) +
-            slideInVertically(animationSpec = tween(durationMillis = 500)) { it / 6 }
-    ) {
-        Box(modifier = modifier) {
-            content()
-        }
-    }
-}
-
-@Composable
 private fun HomeHeader(
     userName: String,
     streakCount: Int,
