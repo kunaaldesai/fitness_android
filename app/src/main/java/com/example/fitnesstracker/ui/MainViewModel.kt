@@ -84,13 +84,18 @@ class MainViewModel(
                 val workouts = workoutsResult.getOrNull() ?: state.workouts
                 val workoutPlans = workoutPlansResult.getOrNull() ?: state.workoutPlans
                 val exercises = exercisesResult.getOrNull() ?: state.exercises
+
+                val userException = userResult.exceptionOrNull()
+                val isUserForbidden = userException is retrofit2.HttpException && userException.code() == 403
+                val userErrorMessage = if (isUserForbidden) null else userException?.message
+
                 state.copy(
                     user = userResult.getOrNull() ?: state.user,
                     workouts = workouts,
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
+                    errorMessage = userErrorMessage
                         ?: workoutsResult.exceptionOrNull()?.message
                         ?: workoutPlansResult.exceptionOrNull()?.message
                         ?: exercisesResult.exceptionOrNull()?.message
