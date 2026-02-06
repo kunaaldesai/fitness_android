@@ -1,12 +1,14 @@
 package com.example.fitnesstracker.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,15 +22,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.FitnessCenter
-import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,11 +36,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,7 +54,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fitnesstracker.data.remote.User
@@ -80,12 +75,10 @@ fun ProfileScreen(
 
     val totalWorkouts = workouts.size
     val totalSets = workouts.sumOf { it.items.sumOf { item -> item.sets.size } }
-    // Calculate a simple "streak" or similar stat if actual streak logic is complex
-    // For now, let's use the same streak logic as Home or just sets
 
     var showEditDialog by remember { mutableStateOf(false) }
 
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(ProfileForestBg)
@@ -96,40 +89,54 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .background(
                     Brush.radialGradient(
-                        colors = listOf(ProfileVibrantGreen.copy(alpha = 0.12f), Color.Transparent),
+                        colors = listOf(ProfileVibrantGreen.copy(alpha = 0.15f), Color.Transparent),
                         center = androidx.compose.ui.geometry.Offset(
                             with(density) { 200.dp.toPx() },
-                            with(density) { 300.dp.toPx() }
+                            with(density) { (-50).dp.toPx() }
                         ),
-                        radius = with(density) { 500.dp.toPx() }
+                        radius = with(density) { 600.dp.toPx() }
                     )
+                )
+        )
+        Box(
+            modifier = Modifier
+                .size(300.dp)
+                .offset(x = (-100).dp, y = 400.dp)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(ProfileVibrantGreen.copy(alpha = 0.08f), Color.Transparent)
+                    ),
+                    shape = CircleShape
                 )
         )
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
-                ProfileHeader(
-                    user = user,
-                    onEditClick = { showEditDialog = true }
-                )
+                StaggeredItem(delayMillis = 0) {
+                    ProfileHeader(
+                        user = user,
+                        onEditClick = { showEditDialog = true }
+                    )
+                }
             }
 
             item {
-                StatsRow(
-                    totalWorkouts = totalWorkouts,
-                    totalSets = totalSets
-                )
+                StaggeredItem(delayMillis = 150) {
+                    StatsRow(
+                        totalWorkouts = totalWorkouts,
+                        totalSets = totalSets
+                    )
+                }
             }
 
             item {
-                SettingsSection()
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(100.dp))
+                StaggeredItem(delayMillis = 300) {
+                    SettingsSection()
+                }
             }
         }
 
@@ -155,7 +162,7 @@ private fun ProfileHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 40.dp),
+            .padding(top = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -223,9 +230,7 @@ private fun StatsRow(
     totalSets: Int
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         StatCard(
@@ -233,7 +238,6 @@ private fun StatsRow(
             label = "WORKOUTS",
             modifier = Modifier.weight(1f)
         )
-        // Placeholder for Streak, as calculation isn't trivial without logic
         StatCard(
             value = "12",
             label = "DAY STREAK",
@@ -286,9 +290,7 @@ private fun StatCard(
 @Composable
 private fun SettingsSection() {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
@@ -296,7 +298,8 @@ private fun SettingsSection() {
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
             color = ProfileTextDim,
-            letterSpacing = 1.5.sp
+            letterSpacing = 1.5.sp,
+            modifier = Modifier.padding(horizontal = 8.dp)
         )
 
         Column(
