@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import retrofit2.HttpException
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -80,20 +81,32 @@ class MainViewModel(
             val workoutPlansResult = repository.fetchWorkoutPlans()
             val exercisesResult = repository.fetchExercises()
 
+            val userError = userResult.exceptionOrNull()
+            val isUser403 = userError is HttpException && userError.code() == 403
+
             _uiState.update { state ->
                 val workouts = workoutsResult.getOrNull() ?: state.workouts
                 val workoutPlans = workoutPlansResult.getOrNull() ?: state.workoutPlans
                 val exercises = exercisesResult.getOrNull() ?: state.exercises
+
+                val errorMessage = if (!isUser403) {
+                    userError?.message
+                        ?: workoutsResult.exceptionOrNull()?.message
+                        ?: workoutPlansResult.exceptionOrNull()?.message
+                        ?: exercisesResult.exceptionOrNull()?.message
+                } else {
+                    workoutsResult.exceptionOrNull()?.message
+                        ?: workoutPlansResult.exceptionOrNull()?.message
+                        ?: exercisesResult.exceptionOrNull()?.message
+                }
+
                 state.copy(
                     user = userResult.getOrNull() ?: state.user,
                     workouts = workouts,
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
-                        ?: workoutsResult.exceptionOrNull()?.message
-                        ?: workoutPlansResult.exceptionOrNull()?.message
-                        ?: exercisesResult.exceptionOrNull()?.message
+                    errorMessage = errorMessage
                 )
             }
 
