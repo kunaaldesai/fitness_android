@@ -84,13 +84,19 @@ class MainViewModel(
                 val workouts = workoutsResult.getOrNull() ?: state.workouts
                 val workoutPlans = workoutPlansResult.getOrNull() ?: state.workoutPlans
                 val exercises = exercisesResult.getOrNull() ?: state.exercises
+
+                // Suppress 403 Forbidden error from user fetch
+                val userError = userResult.exceptionOrNull()
+                val isUserForbidden = userError?.message?.contains("403") == true || userError?.toString()?.contains("403") == true
+                val safeUserError = if (isUserForbidden) null else userError?.message
+
                 state.copy(
                     user = userResult.getOrNull() ?: state.user,
                     workouts = workouts,
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
+                    errorMessage = safeUserError
                         ?: workoutsResult.exceptionOrNull()?.message
                         ?: workoutPlansResult.exceptionOrNull()?.message
                         ?: exercisesResult.exceptionOrNull()?.message
