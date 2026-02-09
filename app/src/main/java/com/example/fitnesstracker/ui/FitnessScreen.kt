@@ -696,9 +696,10 @@ private fun ExploreScreen(
                 }
             } else {
                 items(workoutPlans, key = { it.id }) { plan ->
+                    val highlight = remember(plan) { plan.toHighlight() }
                     StaggeredItem(delayMillis = 120) {
                         WorkoutPlanCard(
-                            highlight = plan.toHighlight(),
+                            highlight = highlight,
                             onStartWorkout = { onStartWorkoutPlan(plan) },
                             ctaLabel = "Start Workout",
                             modifier = Modifier.fillMaxWidth()
@@ -1019,9 +1020,11 @@ private fun TodayWorkoutSection(
                 pageSpacing = 14.dp,
                 modifier = Modifier.fillMaxWidth()
             ) { page ->
+                val plan = workoutPlans[page]
+                val highlight = remember(plan) { plan.toHighlight() }
                 WorkoutPlanCard(
-                    highlight = workoutPlans[page].toHighlight(),
-                    onStartWorkout = { onStartWorkoutPlan(workoutPlans[page]) },
+                    highlight = highlight,
+                    onStartWorkout = { onStartWorkoutPlan(plan) },
                     ctaLabel = ctaLabel,
                     modifier = Modifier.fillMaxWidth()
                 )
