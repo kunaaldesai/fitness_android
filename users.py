@@ -98,17 +98,30 @@ def create_users_app():
 
             # sanitize firstName and lastName
             first_name = data.get("firstName", "")
+            if isinstance(first_name, str):
+                data["firstName"] = first_name[:50].capitalize()
+            else:
+                data["firstName"] = ""
+
             last_name = data.get("lastName", "")
-            if first_name:
-                first_name.capitalize()
-                data["firstName"] = first_name
-            if last_name:
-                last_name.capitalize()
-                data["lastName"] = last_name
+            if isinstance(last_name, str):
+                data["lastName"] = last_name[:50].capitalize()
+            else:
+                data["lastName"] = ""
             
             #additional user data not asked during onboarding
-            data["bio"] = data.get("bio", "")
-            data["imageUrl"] = data.get("imageUrl", "")
+            bio = data.get("bio", "")
+            if isinstance(bio, str):
+                data["bio"] = bio[:500]
+            else:
+                data["bio"] = ""
+
+            image_url = data.get("imageUrl", "")
+            if isinstance(image_url, str):
+                data["imageUrl"] = image_url[:2048]
+            else:
+                data["imageUrl"] = ""
+
             # Security: Prevent privilege escalation
             data["isAdmin"] = False
             if data.get("gender") is None:
@@ -170,14 +183,33 @@ def create_users_app():
                 # Add updatedAt timestamp
                 data["updatedAt"] = firestore.SERVER_TIMESTAMP
 
-                first_name = data.get("firstName", "")
-                last_name = data.get("lastName", "")
-                if first_name:
-                    first_name.capitalize()
-                    data["firstName"] = first_name
-                if last_name:
-                    last_name.capitalize()
-                    data["lastName"] = last_name
+                if "firstName" in data:
+                    first_name = data["firstName"]
+                    if isinstance(first_name, str):
+                        data["firstName"] = first_name[:50].capitalize()
+                    else:
+                        data["firstName"] = ""
+
+                if "lastName" in data:
+                    last_name = data["lastName"]
+                    if isinstance(last_name, str):
+                        data["lastName"] = last_name[:50].capitalize()
+                    else:
+                        data["lastName"] = ""
+
+                if "bio" in data:
+                    bio = data["bio"]
+                    if isinstance(bio, str):
+                        data["bio"] = bio[:500]
+                    else:
+                        data["bio"] = ""
+
+                if "imageUrl" in data:
+                    image_url = data["imageUrl"]
+                    if isinstance(image_url, str):
+                        data["imageUrl"] = image_url[:2048]
+                    else:
+                        data["imageUrl"] = ""
 
                 db.collection('users').document(id).update(data)
                 return jsonify({"message": f"User {id} updated"}), 200

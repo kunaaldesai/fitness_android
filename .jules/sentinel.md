@@ -7,3 +7,8 @@
 **Vulnerability:** Release builds were configured with `isMinifyEnabled = false`, exposing source code structure and logic to easy reverse engineering.
 **Learning:** Disabling R8/ProGuard makes it trivial for attackers to analyze the app's internal logic, API endpoints, and data models using tools like JADX.
 **Prevention:** Always set `isMinifyEnabled = true` and `isShrinkResources = true` for release builds and maintain a correct `proguard-rules.pro` file for dependencies like Retrofit and Serialization.
+
+## 2024-05-25 - Unvalidated Input in User Profiles
+**Vulnerability:** The `users.py` backend service accepted arbitrary input types and unlimited string lengths for `firstName`, `lastName`, `bio`, and `imageUrl`, leading to potential DoS and data integrity issues.
+**Learning:** Python's dynamic typing allows non-string inputs (like lists or dicts) to bypass naive checks or crash operations like `.capitalize()`. Always validate `isinstance(value, str)` before processing string operations.
+**Prevention:** Implement explicit type checks and length limits for all user-generated content fields in API endpoints.
