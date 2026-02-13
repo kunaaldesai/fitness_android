@@ -12,6 +12,7 @@ import com.example.fitnesstracker.data.remote.WorkoutItem
 import com.example.fitnesstracker.data.remote.WorkoutPlan
 import com.example.fitnesstracker.data.remote.WorkoutSet
 import com.example.fitnesstracker.data.remote.WorkoutSetRequest
+import retrofit2.HttpException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -90,7 +91,9 @@ class MainViewModel(
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
+                    errorMessage = userResult.exceptionOrNull()?.let { e ->
+                        if (e is HttpException && e.code() == 403) null else e.message
+                    }
                         ?: workoutsResult.exceptionOrNull()?.message
                         ?: workoutPlansResult.exceptionOrNull()?.message
                         ?: exercisesResult.exceptionOrNull()?.message
