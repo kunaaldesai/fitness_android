@@ -23,6 +23,7 @@ FitnessTracker/
 │  │  │  │  └─ ui/
 │  │  │  │     ├─ FitnessScreen.kt
 │  │  │  │     ├─ ProfileScreen.kt         # Compose UI + navigation shell
+│  │  │  │     ├─ SharedComponents.kt      # Reusable UI components
 │  │  │  │     ├─ MainViewModel.kt         # UI state + actions
 │  │  │  │     └─ theme/                   # Compose theme + colors + typography
 │  │  │  └─ res/                           # Android resources (strings, icons, etc.)

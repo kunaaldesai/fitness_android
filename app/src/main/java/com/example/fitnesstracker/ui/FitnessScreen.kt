@@ -163,14 +163,6 @@ import kotlinx.serialization.json.contentOrNull
 
 private val compactWidthThreshold = 520.dp
 
-private data class StatSummary(
-    val title: String,
-    val value: String,
-    val accent: Color,
-    val icon: ImageVector,
-    val progress: Float
-)
-
 private data class WorkoutPlanHighlight(
     val title: String,
     val subtitle: String,
@@ -710,31 +702,6 @@ private fun ExploreScreen(
     }
 }
 
-@Composable
-private fun StaggeredItem(
-    delayMillis: Int,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    var visible by rememberSaveable { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (!visible) {
-            delay(delayMillis.toLong())
-            visible = true
-        }
-    }
-
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(animationSpec = tween(durationMillis = 500)) +
-            slideInVertically(animationSpec = tween(durationMillis = 500)) { it / 6 }
-    ) {
-        Box(modifier = modifier) {
-            content()
-        }
-    }
-}
 
 @Composable
 private fun HomeHeader(
@@ -773,52 +740,6 @@ private fun HomeHeader(
     }
 }
 
-@Composable
-private fun ProfileAvatar(
-    userName: String,
-    modifier: Modifier = Modifier
-) {
-    val initials = userName
-        .split(" ")
-        .filter { it.isNotBlank() }
-        .mapNotNull { it.firstOrNull()?.uppercase() }
-        .take(2)
-        .joinToString("")
-        .ifBlank { "A" }
-
-    Box(modifier = modifier.size(52.dp)) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .align(Alignment.Center)
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                        )
-                    ),
-                    shape = CircleShape
-                )
-                .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                initials,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onPrimary,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .align(Alignment.BottomEnd)
-                .background(MaterialTheme.colorScheme.primary, shape = CircleShape)
-                .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
-        )
-    }
-}
 
 @Composable
 private fun StreakBadge(streakCount: Int, modifier: Modifier = Modifier) {
@@ -915,62 +836,6 @@ private fun StatsSummaryRow(stats: List<StatSummary>, modifier: Modifier = Modif
     }
 }
 
-@Composable
-private fun StatSummaryCard(summary: StatSummary, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .background(summary.accent.copy(alpha = 0.15f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = summary.icon,
-                    contentDescription = null,
-                    tint = summary.accent,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    summary.value,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    summary.title,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(999.dp))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(summary.progress)
-                        .background(summary.accent, RoundedCornerShape(999.dp))
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun TodayWorkoutSection(
