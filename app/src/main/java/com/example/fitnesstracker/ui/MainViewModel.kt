@@ -80,6 +80,13 @@ class MainViewModel(
             val workoutPlansResult = repository.fetchWorkoutPlans()
             val exercisesResult = repository.fetchExercises()
 
+            val userException = userResult.exceptionOrNull()
+            val userErrorMessage = if (userException is retrofit2.HttpException && userException.code() == 403) {
+                null
+            } else {
+                userException?.message
+            }
+
             _uiState.update { state ->
                 val workouts = workoutsResult.getOrNull() ?: state.workouts
                 val workoutPlans = workoutPlansResult.getOrNull() ?: state.workoutPlans
@@ -90,7 +97,7 @@ class MainViewModel(
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
+                    errorMessage = userErrorMessage
                         ?: workoutsResult.exceptionOrNull()?.message
                         ?: workoutPlansResult.exceptionOrNull()?.message
                         ?: exercisesResult.exceptionOrNull()?.message
