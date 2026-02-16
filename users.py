@@ -7,6 +7,10 @@ import pytz
 import json
 import logging
 
+MAX_NAME_LENGTH = 50
+MAX_BIO_LENGTH = 500
+MAX_URL_LENGTH = 2048
+
 
 def create_users_app():
     # Initialize Flask app
@@ -99,6 +103,21 @@ def create_users_app():
             # sanitize firstName and lastName
             first_name = data.get("firstName", "")
             last_name = data.get("lastName", "")
+
+            if not isinstance(first_name, str) or len(first_name) > MAX_NAME_LENGTH:
+                return jsonify({
+                    "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                    "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                    "details": f"firstName must be a string under {MAX_NAME_LENGTH} characters."
+                }), 400
+
+            if not isinstance(last_name, str) or len(last_name) > MAX_NAME_LENGTH:
+                return jsonify({
+                    "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                    "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                    "details": f"lastName must be a string under {MAX_NAME_LENGTH} characters."
+                }), 400
+
             if first_name:
                 first_name.capitalize()
                 data["firstName"] = first_name
@@ -107,8 +126,25 @@ def create_users_app():
                 data["lastName"] = last_name
             
             #additional user data not asked during onboarding
-            data["bio"] = data.get("bio", "")
-            data["imageUrl"] = data.get("imageUrl", "")
+            bio = data.get("bio", "")
+            image_url = data.get("imageUrl", "")
+
+            if not isinstance(bio, str) or len(bio) > MAX_BIO_LENGTH:
+                return jsonify({
+                    "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                    "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                    "details": f"bio must be a string under {MAX_BIO_LENGTH} characters."
+                }), 400
+
+            if not isinstance(image_url, str) or len(image_url) > MAX_URL_LENGTH:
+                return jsonify({
+                    "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                    "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                    "details": f"imageUrl must be a string under {MAX_URL_LENGTH} characters."
+                }), 400
+
+            data["bio"] = bio
+            data["imageUrl"] = image_url
             # Security: Prevent privilege escalation
             data["isAdmin"] = False
             if data.get("gender") is None:
@@ -172,6 +208,37 @@ def create_users_app():
 
                 first_name = data.get("firstName", "")
                 last_name = data.get("lastName", "")
+                bio = data.get("bio", "")
+                image_url = data.get("imageUrl", "")
+
+                if not isinstance(first_name, str) or len(first_name) > MAX_NAME_LENGTH:
+                    return jsonify({
+                        "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                        "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                        "details": f"firstName must be a string under {MAX_NAME_LENGTH} characters."
+                    }), 400
+
+                if not isinstance(last_name, str) or len(last_name) > MAX_NAME_LENGTH:
+                    return jsonify({
+                        "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                        "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                        "details": f"lastName must be a string under {MAX_NAME_LENGTH} characters."
+                    }), 400
+
+                if not isinstance(bio, str) or len(bio) > MAX_BIO_LENGTH:
+                    return jsonify({
+                        "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                        "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                        "details": f"bio must be a string under {MAX_BIO_LENGTH} characters."
+                    }), 400
+
+                if not isinstance(image_url, str) or len(image_url) > MAX_URL_LENGTH:
+                    return jsonify({
+                        "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                        "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                        "details": f"imageUrl must be a string under {MAX_URL_LENGTH} characters."
+                    }), 400
+
                 if first_name:
                     first_name.capitalize()
                     data["firstName"] = first_name
