@@ -1067,7 +1067,7 @@ private fun StopwatchTimerCard(modifier: Modifier = Modifier) {
     } else {
         0L
     }
-    val intervalRemainingLabel = formatMinutesSeconds(intervalRemainingMs)
+    val intervalRemainingLabel = if (intervalsEnabled) formatMinutesSeconds(intervalRemainingMs) else "00:00"
     val ringProgress by animateFloatAsState(
         targetValue = if (mode == TimerMode.Stopwatch) stopwatchProgress else timerProgress,
         animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
@@ -1079,9 +1079,11 @@ private fun StopwatchTimerCard(modifier: Modifier = Modifier) {
     val customSeconds = customSecondsText.toIntOrNull()?.coerceIn(0, 59) ?: 0
     val customTotalMs = (customMinutes * 60L + customSeconds) * 1000L
     val customSetEnabled = customTotalMs > 0L
-    val onModeChange: (TimerMode) -> Unit = { newMode ->
-        if (newMode != mode) {
-            mode = newMode
+    val onModeChange: (TimerMode) -> Unit = remember {
+        { newMode ->
+            if (newMode != mode) {
+                mode = newMode
+            }
         }
     }
     fun addLapEntry(isAuto: Boolean) {
@@ -1137,85 +1139,105 @@ private fun StopwatchTimerCard(modifier: Modifier = Modifier) {
             delay(100L)
         }
     }
-    val onToggleStopwatch = {
-        if (stopwatchRunning) {
+    val onToggleStopwatch = remember {
+        {
+            if (stopwatchRunning) {
+                stopwatchRunning = false
+            } else {
+                stopwatchStartMs = System.currentTimeMillis() - stopwatchElapsedMs
+                lastIntervalIndex = if (intervalLengthMs > 0L) {
+                    (stopwatchElapsedMs / intervalLengthMs).toInt()
+                } else {
+                    0
+                }
+                stopwatchRunning = true
+            }
+        }
+    }
+    val onResetStopwatch = remember {
+        {
             stopwatchRunning = false
-        } else {
-            stopwatchStartMs = System.currentTimeMillis() - stopwatchElapsedMs
-            lastIntervalIndex = if (intervalLengthMs > 0L) {
-                (stopwatchElapsedMs / intervalLengthMs).toInt()
+            stopwatchElapsedMs = 0L
+            lapEntries.clear()
+            lapMarkMs = 0L
+            lapCount = 0
+            intervalCount = 0
+            lastIntervalIndex = 0
+        }
+    }
+    val onToggleLap = remember {
+        {
+            lapEnabled = !lapEnabled
+        }
+    }
+    val onToggleIntervals = remember {
+        {
+            val newValue = !intervalsEnabled
+            intervalsEnabled = newValue
+            if (newValue) {
+                lastIntervalIndex = if (intervalLengthMs > 0L) {
+                    (stopwatchElapsedMs / intervalLengthMs).toInt()
+                } else {
+                    0
+                }
+            }
+        }
+    }
+    val onLap = remember {
+        {
+            if (lapEnabled && stopwatchRunning) {
+                addLapEntry(false)
+            }
+        }
+    }
+    val onToggleTimer = remember {
+        {
+            if (timerRunning) {
+                timerRunning = false
+            } else {
+                if (timerRemainingMs <= 0L) {
+                    timerRemainingMs = timerTotalMs
+                }
+                timerStartMs = System.currentTimeMillis() - (timerTotalMs - timerRemainingMs)
+                timerRunning = true
+            }
+        }
+    }
+    val onResetTimer = remember {
+        {
+            timerRunning = false
+            timerRemainingMs = timerTotalMs
+        }
+    }
+    val onSelectInterval: (Long) -> Unit = remember {
+        { intervalMs ->
+            intervalLengthMs = intervalMs
+            lastIntervalIndex = if (intervalMs > 0L) {
+                (stopwatchElapsedMs / intervalMs).toInt()
             } else {
                 0
             }
-            stopwatchRunning = true
         }
     }
-    val onResetStopwatch = {
-        stopwatchRunning = false
-        stopwatchElapsedMs = 0L
-        lapEntries.clear()
-        lapMarkMs = 0L
-        lapCount = 0
-        intervalCount = 0
-        lastIntervalIndex = 0
-    }
-    val onToggleLap = {
-        lapEnabled = !lapEnabled
-    }
-    val onToggleIntervals = {
-        val newValue = !intervalsEnabled
-        intervalsEnabled = newValue
-        if (newValue) {
-            lastIntervalIndex = if (intervalLengthMs > 0L) {
-                (stopwatchElapsedMs / intervalLengthMs).toInt()
-            } else {
-                0
-            }
-        }
-    }
-    val onLap = {
-        if (lapEnabled && stopwatchRunning) {
-            addLapEntry(false)
-        }
-    }
-    val onToggleTimer = {
-        if (timerRunning) {
+    val onSelectTimerPreset: (Long) -> Unit = remember {
+        { preset ->
             timerRunning = false
-        } else {
-            if (timerRemainingMs <= 0L) {
-                timerRemainingMs = timerTotalMs
+            timerTotalMs = preset
+            timerRemainingMs = preset
+            val totalSeconds = preset / 1000L
+            customMinutesText = (totalSeconds / 60L).toString().padStart(2, '0')
+            customSecondsText = (totalSeconds % 60L).toString().padStart(2, '0')
+        }
+    }
+    val onSetCustomTimer = remember(customTotalMs, customMinutes, customSeconds) {
+        {
+            if (customTotalMs > 0L) {
+                timerRunning = false
+                timerTotalMs = customTotalMs
+                timerRemainingMs = customTotalMs
+                customMinutesText = customMinutes.toString().padStart(2, '0')
+                customSecondsText = customSeconds.toString().padStart(2, '0')
             }
-            timerStartMs = System.currentTimeMillis() - (timerTotalMs - timerRemainingMs)
-            timerRunning = true
-        }
-    }
-    val onResetTimer = {
-        timerRunning = false
-        timerRemainingMs = timerTotalMs
-    }
-    val onSelectInterval: (Long) -> Unit = { intervalMs ->
-        intervalLengthMs = intervalMs
-        lastIntervalIndex = if (intervalMs > 0L) {
-            (stopwatchElapsedMs / intervalMs).toInt()
-        } else {
-            0
-        }
-    }
-    val onSelectTimerPreset: (Long) -> Unit = { preset ->
-        timerRunning = false
-        timerTotalMs = preset
-        timerRemainingMs = preset
-        val totalSeconds = preset / 1000L
-        customMinutesText = (totalSeconds / 60L).toString().padStart(2, '0')
-        customSecondsText = (totalSeconds % 60L).toString().padStart(2, '0')
-    }
-    val onSetCustomTimer = {
-        if (customTotalMs > 0L) {
-            timerRunning = false
-            timerTotalMs = customTotalMs
-            timerRemainingMs = customTotalMs
-            customMinutesText = customMinutes.toString().padStart(2, '0')
-            customSecondsText = customSeconds.toString().padStart(2, '0')
         }
     }
 
@@ -1312,7 +1334,7 @@ private fun StopwatchTimerCard(modifier: Modifier = Modifier) {
                                 mode = mode,
                                 accent = accent,
                                 stopwatchRunning = stopwatchRunning,
-                                stopwatchElapsedMs = stopwatchElapsedMs,
+                                stopwatchHasElapsed = stopwatchElapsedMs > 0L,
                                 lapEnabled = lapEnabled,
                                 intervalsEnabled = intervalsEnabled,
                                 onToggleStopwatch = onToggleStopwatch,
@@ -1326,17 +1348,17 @@ private fun StopwatchTimerCard(modifier: Modifier = Modifier) {
                                 onSelectInterval = onSelectInterval,
                                 timerRunning = timerRunning,
                                 timerTotalMs = timerTotalMs,
-                                timerRemainingMs = timerRemainingMs,
+                                timerHasElapsed = timerRemainingMs < timerTotalMs,
                                 onToggleTimer = onToggleTimer,
                                 onResetTimer = onResetTimer,
                                 onSelectTimerPreset = onSelectTimerPreset,
                                 customMinutesText = customMinutesText,
                                 customSecondsText = customSecondsText,
-                                onCustomMinutesChange = { value ->
-                                    customMinutesText = value.filter { it.isDigit() }.take(2)
+                                onCustomMinutesChange = remember {
+                                    { value -> customMinutesText = value.filter { it.isDigit() }.take(2) }
                                 },
-                                onCustomSecondsChange = { value ->
-                                    customSecondsText = value.filter { it.isDigit() }.take(2)
+                                onCustomSecondsChange = remember {
+                                    { value -> customSecondsText = value.filter { it.isDigit() }.take(2) }
                                 },
                                 onSetCustomTimer = onSetCustomTimer,
                                 customSetEnabled = customSetEnabled,
@@ -1359,7 +1381,7 @@ private fun StopwatchTimerCard(modifier: Modifier = Modifier) {
                                 mode = mode,
                                 accent = accent,
                                 stopwatchRunning = stopwatchRunning,
-                                stopwatchElapsedMs = stopwatchElapsedMs,
+                                stopwatchHasElapsed = stopwatchElapsedMs > 0L,
                                 lapEnabled = lapEnabled,
                                 intervalsEnabled = intervalsEnabled,
                                 onToggleStopwatch = onToggleStopwatch,
@@ -1373,17 +1395,17 @@ private fun StopwatchTimerCard(modifier: Modifier = Modifier) {
                                 onSelectInterval = onSelectInterval,
                                 timerRunning = timerRunning,
                                 timerTotalMs = timerTotalMs,
-                                timerRemainingMs = timerRemainingMs,
+                                timerHasElapsed = timerRemainingMs < timerTotalMs,
                                 onToggleTimer = onToggleTimer,
                                 onResetTimer = onResetTimer,
                                 onSelectTimerPreset = onSelectTimerPreset,
                                 customMinutesText = customMinutesText,
                                 customSecondsText = customSecondsText,
-                                onCustomMinutesChange = { value ->
-                                    customMinutesText = value.filter { it.isDigit() }.take(2)
+                                onCustomMinutesChange = remember {
+                                    { value -> customMinutesText = value.filter { it.isDigit() }.take(2) }
                                 },
-                                onCustomSecondsChange = { value ->
-                                    customSecondsText = value.filter { it.isDigit() }.take(2)
+                                onCustomSecondsChange = remember {
+                                    { value -> customSecondsText = value.filter { it.isDigit() }.take(2) }
                                 },
                                 onSetCustomTimer = onSetCustomTimer,
                                 customSetEnabled = customSetEnabled,
@@ -1522,7 +1544,7 @@ private fun StopwatchTimerDetails(
     mode: TimerMode,
     accent: Color,
     stopwatchRunning: Boolean,
-    stopwatchElapsedMs: Long,
+    stopwatchHasElapsed: Boolean,
     lapEnabled: Boolean,
     intervalsEnabled: Boolean,
     onToggleStopwatch: () -> Unit,
@@ -1536,7 +1558,7 @@ private fun StopwatchTimerDetails(
     onSelectInterval: (Long) -> Unit,
     timerRunning: Boolean,
     timerTotalMs: Long,
-    timerRemainingMs: Long,
+    timerHasElapsed: Boolean,
     onToggleTimer: () -> Unit,
     onResetTimer: () -> Unit,
     onSelectTimerPreset: (Long) -> Unit,
@@ -1563,7 +1585,7 @@ private fun StopwatchTimerDetails(
             StopwatchModeDetails(
                 accent = accent,
                 isRunning = stopwatchRunning,
-                elapsedMs = stopwatchElapsedMs,
+                hasElapsed = stopwatchHasElapsed,
                 lapEnabled = lapEnabled,
                 intervalsEnabled = intervalsEnabled,
                 lapEntries = lapEntries,
@@ -1592,7 +1614,7 @@ private fun StopwatchTimerDetails(
                 accent = accent,
                 isRunning = timerRunning,
                 totalMs = timerTotalMs,
-                remainingMs = timerRemainingMs,
+                hasElapsed = timerHasElapsed,
                 onToggleRunning = onToggleTimer,
                 onReset = onResetTimer,
                 onSelectPreset = onSelectTimerPreset,
@@ -1611,7 +1633,7 @@ private fun StopwatchTimerDetails(
 private fun StopwatchModeDetails(
     accent: Color,
     isRunning: Boolean,
-    elapsedMs: Long,
+    hasElapsed: Boolean,
     lapEnabled: Boolean,
     intervalsEnabled: Boolean,
     lapEntries: List<LapEntry>,
@@ -1627,7 +1649,7 @@ private fun StopwatchModeDetails(
 ) {
     val actionLabel = when {
         isRunning -> "Pause"
-        elapsedMs > 0L -> "Resume"
+        hasElapsed -> "Resume"
         else -> "Start"
     }
     val actionIcon = if (isRunning) Icons.Rounded.Pause else Icons.Rounded.PlayArrow
@@ -1708,7 +1730,7 @@ private fun StopwatchModeDetails(
                     Text("Lap")
                 }
             }
-            if (elapsedMs > 0L) {
+            if (hasElapsed) {
                 TextButton(
                     onClick = onReset,
                     colors = ButtonDefaults.textButtonColors(contentColor = accent)
@@ -1737,7 +1759,7 @@ private fun TimerModeDetails(
     accent: Color,
     isRunning: Boolean,
     totalMs: Long,
-    remainingMs: Long,
+    hasElapsed: Boolean,
     onToggleRunning: () -> Unit,
     onReset: () -> Unit,
     onSelectPreset: (Long) -> Unit,
@@ -1751,7 +1773,7 @@ private fun TimerModeDetails(
 ) {
     val actionLabel = when {
         isRunning -> "Pause"
-        remainingMs < totalMs -> "Resume"
+        hasElapsed -> "Resume"
         else -> "Start"
     }
     val actionIcon = if (isRunning) Icons.Rounded.Pause else Icons.Rounded.Timer
@@ -1840,7 +1862,7 @@ private fun TimerModeDetails(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (remainingMs != totalMs) {
+            if (hasElapsed) {
                 TextButton(
                     onClick = onReset,
                     colors = ButtonDefaults.textButtonColors(contentColor = accent)
