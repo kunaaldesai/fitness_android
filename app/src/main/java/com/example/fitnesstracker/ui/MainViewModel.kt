@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitnesstracker.data.FitnessRepository
 import com.example.fitnesstracker.data.remote.CreateWorkoutRequest
+import retrofit2.HttpException
 import com.example.fitnesstracker.data.remote.Exercise
 import com.example.fitnesstracker.data.remote.User
 import com.example.fitnesstracker.data.remote.Workout
@@ -90,7 +91,7 @@ class MainViewModel(
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
+                    errorMessage = (userResult.exceptionOrNull()?.takeUnless { it is retrofit2.HttpException && it.code() == 403 }?.message)
                         ?: workoutsResult.exceptionOrNull()?.message
                         ?: workoutPlansResult.exceptionOrNull()?.message
                         ?: exercisesResult.exceptionOrNull()?.message
