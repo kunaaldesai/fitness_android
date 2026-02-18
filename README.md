@@ -24,6 +24,7 @@ FitnessTracker/
 │  │  │  │     ├─ FitnessScreen.kt
 │  │  │  │     ├─ ProfileScreen.kt         # Compose UI + navigation shell
 │  │  │  │     ├─ MainViewModel.kt         # UI state + actions
+│  │  │  │     ├─ SharedComponents.kt      # Reusable UI components
 │  │  │  │     └─ theme/                   # Compose theme + colors + typography
 │  │  │  └─ res/                           # Android resources (strings, icons, etc.)
 │  │  ├─ test/                             # JVM unit tests (JUnit/MockK)
