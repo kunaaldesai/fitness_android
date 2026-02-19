@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -84,13 +85,18 @@ class MainViewModel(
                 val workouts = workoutsResult.getOrNull() ?: state.workouts
                 val workoutPlans = workoutPlansResult.getOrNull() ?: state.workoutPlans
                 val exercises = exercisesResult.getOrNull() ?: state.exercises
+
+                val userError = userResult.exceptionOrNull()
+                val is403 = (userError as? HttpException)?.code() == 403
+                val effectiveUserError = if (is403) null else userError
+
                 state.copy(
                     user = userResult.getOrNull() ?: state.user,
                     workouts = workouts,
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
+                    errorMessage = effectiveUserError?.message
                         ?: workoutsResult.exceptionOrNull()?.message
                         ?: workoutPlansResult.exceptionOrNull()?.message
                         ?: exercisesResult.exceptionOrNull()?.message
