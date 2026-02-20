@@ -10,17 +10,47 @@ import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import okhttp3.ResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import retrofit2.HttpException
+import retrofit2.Response
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModelBugFixTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    @Test
+    fun fetchUser_403Forbidden_suppressesErrorMessage() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = mockk<FitnessRepository>()
+
+        // Mock 403 error
+        val errorResponse = Response.error<User>(403, ResponseBody.create(null, "Forbidden"))
+        val httpException = HttpException(errorResponse)
+
+        coEvery { repository.fetchUser() } returns Result.failure(httpException)
+        // Other calls succeed or return empty
+        coEvery { repository.fetchWorkouts(any()) } returns Result.success(emptyList())
+        coEvery { repository.fetchWorkoutPlans() } returns Result.success(emptyList())
+        coEvery { repository.fetchExercises(any()) } returns Result.success(emptyList())
+
+        val viewModel = MainViewModel(repository)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        // Verify user is null (Guest state)
+        assertNull(state.user)
+
+        // Verify NO error message is shown to user for 403
+        assertNull("Error message should be suppressed for 403", state.errorMessage)
+        assertFalse(state.isLoading)
+    }
 
     @Test
     fun startWorkoutFromPlan_doesNotSetInfoMessage() = runTest(mainDispatcherRule.dispatcher) {
