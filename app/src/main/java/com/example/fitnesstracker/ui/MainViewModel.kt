@@ -12,6 +12,7 @@ import com.example.fitnesstracker.data.remote.WorkoutItem
 import com.example.fitnesstracker.data.remote.WorkoutPlan
 import com.example.fitnesstracker.data.remote.WorkoutSet
 import com.example.fitnesstracker.data.remote.WorkoutSetRequest
+import retrofit2.HttpException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -80,20 +81,32 @@ class MainViewModel(
             val workoutPlansResult = repository.fetchWorkoutPlans()
             val exercisesResult = repository.fetchExercises()
 
+            val userException = userResult.exceptionOrNull()
+            val isUser403 = userException is HttpException && userException.code() == 403
+
             _uiState.update { state ->
                 val workouts = workoutsResult.getOrNull() ?: state.workouts
                 val workoutPlans = workoutPlansResult.getOrNull() ?: state.workoutPlans
                 val exercises = exercisesResult.getOrNull() ?: state.exercises
+
+                val errorMessage = if (isUser403) {
+                    workoutsResult.exceptionOrNull()?.message
+                        ?: workoutPlansResult.exceptionOrNull()?.message
+                        ?: exercisesResult.exceptionOrNull()?.message
+                } else {
+                    userException?.message
+                        ?: workoutsResult.exceptionOrNull()?.message
+                        ?: workoutPlansResult.exceptionOrNull()?.message
+                        ?: exercisesResult.exceptionOrNull()?.message
+                }
+
                 state.copy(
                     user = userResult.getOrNull() ?: state.user,
                     workouts = workouts,
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
-                        ?: workoutsResult.exceptionOrNull()?.message
-                        ?: workoutPlansResult.exceptionOrNull()?.message
-                        ?: exercisesResult.exceptionOrNull()?.message
+                    errorMessage = errorMessage
                 )
             }
 
