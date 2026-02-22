@@ -1,12 +1,13 @@
 package com.example.fitnesstracker.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Edit
@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material3.AlertDialog
@@ -38,11 +39,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,12 +52,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fitnesstracker.data.remote.User
@@ -108,28 +107,33 @@ fun ProfileScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 100.dp), // Add padding for bottom nav
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
-                ProfileHeader(
-                    user = user,
-                    onEditClick = { showEditDialog = true }
-                )
+                StaggeredItem(delayMillis = 0) {
+                    ProfileHeader(
+                        user = user,
+                        onEditClick = { showEditDialog = true }
+                    )
+                }
             }
 
             item {
-                StatsRow(
-                    totalWorkouts = totalWorkouts,
-                    totalSets = totalSets
-                )
+                StaggeredItem(delayMillis = 100) {
+                    val stats = listOf(
+                        StatSummary("WORKOUTS", totalWorkouts.toString(), ProfileVibrantGreen, Icons.Rounded.FitnessCenter, 0.7f),
+                        StatSummary("DAY STREAK", "12", ProfileVibrantGreen, Icons.Rounded.LocalFireDepartment, 0.8f),
+                        StatSummary("TOTAL SETS", totalSets.toString(), ProfileVibrantGreen, Icons.Rounded.Repeat, 0.5f)
+                    )
+                    StatsSummaryRow(stats = stats, modifier = Modifier.padding(horizontal = 20.dp))
+                }
             }
 
             item {
-                SettingsSection()
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(100.dp))
+                StaggeredItem(delayMillis = 200) {
+                    SettingsSection()
+                }
             }
         }
 
@@ -160,6 +164,7 @@ private fun ProfileHeader(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Box {
+            // Using a larger version of ProfileAvatar logic but customized for profile screen
             Box(
                 modifier = Modifier
                     .size(120.dp)
@@ -218,72 +223,6 @@ private fun ProfileHeader(
 }
 
 @Composable
-private fun StatsRow(
-    totalWorkouts: Int,
-    totalSets: Int
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        StatCard(
-            value = totalWorkouts.toString(),
-            label = "WORKOUTS",
-            modifier = Modifier.weight(1f)
-        )
-        // Placeholder for Streak, as calculation isn't trivial without logic
-        StatCard(
-            value = "12",
-            label = "DAY STREAK",
-            modifier = Modifier.weight(1f)
-        )
-        StatCard(
-            value = totalSets.toString(),
-            label = "TOTAL SETS",
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun StatCard(
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = ProfileCardColor),
-        border = BorderStroke(1.dp, ProfileVibrantGreen.copy(alpha = 0.2f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 20.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = ProfileVibrantGreen
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = ProfileTextDim,
-                fontSize = 10.sp
-            )
-        }
-    }
-}
-
-@Composable
 private fun SettingsSection() {
     Column(
         modifier = Modifier
@@ -299,33 +238,41 @@ private fun SettingsSection() {
             letterSpacing = 1.5.sp
         )
 
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = ProfileCardColor),
+            border = BorderStroke(1.dp, ProfileVibrantGreen.copy(alpha = 0.2f))
         ) {
-            SettingsItem(
-                icon = Icons.Rounded.Person,
-                label = "Edit Profile",
-                onClick = {}
-            )
-            SettingsItem(
-                icon = Icons.Rounded.Notifications,
-                label = "Notifications",
-                onClick = {}
-            )
-            SettingsItem(
-                icon = Icons.Rounded.Straighten,
-                label = "Unit System",
-                trailingText = "Metric",
-                onClick = {}
-            )
-            HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 8.dp))
-            SettingsItem(
-                icon = Icons.AutoMirrored.Rounded.Logout,
-                label = "Sign Out",
-                iconTint = Color(0xFFEF4444),
-                textColor = Color(0xFFEF4444),
-                onClick = {}
-            )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(vertical = 8.dp)
+            ) {
+                SettingsItem(
+                    icon = Icons.Rounded.Person,
+                    label = "Edit Profile",
+                    onClick = {}
+                )
+                SettingsItem(
+                    icon = Icons.Rounded.Notifications,
+                    label = "Notifications",
+                    onClick = {}
+                )
+                SettingsItem(
+                    icon = Icons.Rounded.Straighten,
+                    label = "Unit System",
+                    trailingText = "Metric",
+                    onClick = {}
+                )
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(vertical = 8.dp))
+                SettingsItem(
+                    icon = Icons.AutoMirrored.Rounded.Logout,
+                    label = "Sign Out",
+                    iconTint = Color(0xFFEF4444),
+                    textColor = Color(0xFFEF4444),
+                    onClick = {}
+                )
+            }
         }
     }
 }
@@ -342,9 +289,8 @@ private fun SettingsItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
             .clickable { onClick() }
-            .padding(vertical = 12.dp, horizontal = 8.dp),
+            .padding(vertical = 12.dp, horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
