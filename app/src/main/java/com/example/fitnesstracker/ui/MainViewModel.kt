@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -84,16 +85,25 @@ class MainViewModel(
                 val workouts = workoutsResult.getOrNull() ?: state.workouts
                 val workoutPlans = workoutPlansResult.getOrNull() ?: state.workoutPlans
                 val exercises = exercisesResult.getOrNull() ?: state.exercises
+
+                val error = userResult.exceptionOrNull()
+                    ?: workoutsResult.exceptionOrNull()
+                    ?: workoutPlansResult.exceptionOrNull()
+                    ?: exercisesResult.exceptionOrNull()
+
+                val errorMessage = if (error != null && !isForbidden(error)) {
+                    error.message
+                } else {
+                    null
+                }
+
                 state.copy(
                     user = userResult.getOrNull() ?: state.user,
                     workouts = workouts,
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
-                        ?: workoutsResult.exceptionOrNull()?.message
-                        ?: workoutPlansResult.exceptionOrNull()?.message
-                        ?: exercisesResult.exceptionOrNull()?.message
+                    errorMessage = errorMessage
                 )
             }
 
@@ -154,9 +164,10 @@ class MainViewModel(
                         )
                     },
                     onFailure = { error ->
+                        val errorMessage = if (isForbidden(error)) null else error.userFacing("Could not load workout")
                         state.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not load workout"),
+                            errorMessage = errorMessage,
                             selectedWorkoutId = workoutId
                         )
                     }
@@ -572,12 +583,14 @@ class MainViewModel(
         val workoutsResult = repository.fetchWorkouts()
         val exercisesResult = repository.fetchExercises()
         _uiState.update { state ->
+            val error = workoutsResult.exceptionOrNull() ?: exercisesResult.exceptionOrNull()
+            val errorMessage = if (error != null && !isForbidden(error)) error.message else null
+
             state.copy(
                 workouts = workoutsResult.getOrDefault(state.workouts),
                 exercises = exercisesResult.getOrDefault(state.exercises),
                 isActionRunning = false,
-                errorMessage = workoutsResult.exceptionOrNull()?.message
-                    ?: exercisesResult.exceptionOrNull()?.message,
+                errorMessage = errorMessage,
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutId = createdWorkoutId ?: state.recentlyCreatedWorkoutId,
                 recentlyCompletedWorkoutId = completedWorkoutId ?: state.recentlyCompletedWorkoutId
@@ -592,10 +605,13 @@ class MainViewModel(
     ) {
         val workoutPlansResult = repository.fetchWorkoutPlans()
         _uiState.update { state ->
+            val error = workoutPlansResult.exceptionOrNull()
+            val errorMessage = if (error != null && !isForbidden(error)) error.message else null
+
             state.copy(
                 workoutPlans = workoutPlansResult.getOrDefault(state.workoutPlans),
                 isActionRunning = false,
-                errorMessage = workoutPlansResult.exceptionOrNull()?.message,
+                errorMessage = errorMessage,
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutPlanId = createdWorkoutPlanId ?: state.recentlyCreatedWorkoutPlanId
             )
@@ -604,4 +620,8 @@ class MainViewModel(
 
     private fun Throwable.userFacing(fallback: String): String =
         message?.takeIf { it.isNotBlank() } ?: fallback
+
+    private fun isForbidden(throwable: Throwable?): Boolean {
+        return throwable is HttpException && throwable.code() == 403
+    }
 }
