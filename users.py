@@ -97,18 +97,39 @@ def create_users_app():
             data["updatedAt"] = firestore.SERVER_TIMESTAMP
 
             # sanitize firstName and lastName
-            first_name = data.get("firstName", "")
-            last_name = data.get("lastName", "")
+            first_name = str(data.get("firstName") or "")
+            last_name = str(data.get("lastName") or "")
+
+            # Input validation
+            if len(first_name) > 50 or len(last_name) > 50:
+                 return jsonify({
+                    "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                    "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                    "details": "Name exceeds 50 characters."
+                }), 400
+
             if first_name:
-                first_name.capitalize()
-                data["firstName"] = first_name
+                data["firstName"] = first_name.capitalize()
             if last_name:
-                last_name.capitalize()
-                data["lastName"] = last_name
+                data["lastName"] = last_name.capitalize()
             
             #additional user data not asked during onboarding
-            data["bio"] = data.get("bio", "")
-            data["imageUrl"] = data.get("imageUrl", "")
+            data["bio"] = str(data.get("bio") or "")
+            data["imageUrl"] = str(data.get("imageUrl") or "")
+
+            if len(data["bio"]) > 500:
+                 return jsonify({
+                    "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                    "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                    "details": "Bio exceeds 500 characters."
+                }), 400
+
+            if len(data["imageUrl"]) > 2048:
+                 return jsonify({
+                    "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                    "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                    "details": "Image URL exceeds 2048 characters."
+                }), 400
             # Security: Prevent privilege escalation
             data["isAdmin"] = False
             if data.get("gender") is None:
@@ -170,14 +191,35 @@ def create_users_app():
                 # Add updatedAt timestamp
                 data["updatedAt"] = firestore.SERVER_TIMESTAMP
 
-                first_name = data.get("firstName", "")
-                last_name = data.get("lastName", "")
+                first_name = str(data.get("firstName") or "")
+                last_name = str(data.get("lastName") or "")
+
+                # Input validation
+                if len(first_name) > 50 or len(last_name) > 50:
+                     return jsonify({
+                        "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                        "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                        "details": "Name exceeds 50 characters."
+                    }), 400
+
+                if "bio" in data and len(str(data["bio"] or "")) > 500:
+                     return jsonify({
+                        "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                        "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                        "details": "Bio exceeds 500 characters."
+                    }), 400
+
+                if "imageUrl" in data and len(str(data["imageUrl"] or "")) > 2048:
+                     return jsonify({
+                        "error": ERROR_CODES["INVALID_REQUEST"]["message"],
+                        "code": ERROR_CODES["INVALID_REQUEST"]["code"],
+                        "details": "Image URL exceeds 2048 characters."
+                    }), 400
+
                 if first_name:
-                    first_name.capitalize()
-                    data["firstName"] = first_name
+                    data["firstName"] = first_name.capitalize()
                 if last_name:
-                    last_name.capitalize()
-                    data["lastName"] = last_name
+                    data["lastName"] = last_name.capitalize()
 
                 db.collection('users').document(id).update(data)
                 return jsonify({"message": f"User {id} updated"}), 200
