@@ -135,6 +135,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -3554,7 +3555,7 @@ private fun WorkoutSetInputList(
                             onValueChange = { entry.weight = it },
                             placeholder = { Text("0") },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                             shape = WorkoutFieldShape,
                             colors = textFieldColors,
                             textStyle = textStyle
@@ -3580,7 +3581,7 @@ private fun WorkoutSetInputList(
                             placeholder = { Text("0") },
                             singleLine = true,
                             isError = entry.repsError,
-                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                             shape = WorkoutFieldShape,
                             colors = textFieldColors,
                             textStyle = textStyle
@@ -3602,7 +3603,10 @@ private fun WorkoutSetInputList(
                             onValueChange = { entry.rir = it },
                             placeholder = { Text("0") },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions.Default.copy(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = if (setIndex < setInputs.lastIndex) ImeAction.Next else ImeAction.Done
+                            ),
                             shape = WorkoutFieldShape,
                             colors = textFieldColors,
                             textStyle = textStyle
@@ -4841,7 +4845,7 @@ private fun WorkoutDetailScreen(
                                                         onValueChange = { entry.weight = it },
                                                         placeholder = { Text("0") },
                                                         singleLine = true,
-                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                                                         shape = WorkoutFieldShape,
                                                         colors = textFieldColors,
                                                         textStyle = textStyle,
@@ -4868,7 +4872,7 @@ private fun WorkoutDetailScreen(
                                                         placeholder = { Text("0") },
                                                         singleLine = true,
                                                         isError = entry.repsError,
-                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
                                                         shape = WorkoutFieldShape,
                                                         colors = textFieldColors,
                                                         textStyle = textStyle,
@@ -4891,7 +4895,10 @@ private fun WorkoutDetailScreen(
                                                         onValueChange = { entry.rir = it },
                                                         placeholder = { Text("0") },
                                                         singleLine = true,
-                                                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                                                        keyboardOptions = KeyboardOptions.Default.copy(
+                                                            keyboardType = KeyboardType.Number,
+                                                            imeAction = if (setIndex < setEdits.lastIndex) ImeAction.Next else ImeAction.Done
+                                                        ),
                                                         shape = WorkoutFieldShape,
                                                         colors = textFieldColors,
                                                         textStyle = textStyle,
@@ -5322,21 +5329,21 @@ private fun EditSetDialog(
                     label = { Text("Reps") },
                     singleLine = true,
                     isError = repsError,
-                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                 )
                 OutlinedTextField(
                     value = weightText,
                     onValueChange = { weightText = it },
                     label = { Text("Weight") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                 )
                 OutlinedTextField(
                     value = rirText,
                     onValueChange = { rirText = it },
                     label = { Text("RIR") },
                     singleLine = true,
-                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                 )
                 OutlinedTextField(
                     value = notesText,
@@ -5436,7 +5443,7 @@ private fun AddSetForm(
                         label = { Text("Reps") },
                         singleLine = true,
                         isError = repsError,
-                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                     )
                     OutlinedTextField(
                         value = weightText,
@@ -5444,7 +5451,7 @@ private fun AddSetForm(
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Weight") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                     )
                 }
             } else {
@@ -5459,7 +5466,7 @@ private fun AddSetForm(
                         label = { Text("Reps") },
                         singleLine = true,
                         isError = repsError,
-                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                     )
                     OutlinedTextField(
                         value = weightText,
@@ -5467,7 +5474,7 @@ private fun AddSetForm(
                         modifier = Modifier.weight(1f),
                         label = { Text("Weight") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                     )
                 }
             }
@@ -5479,7 +5486,7 @@ private fun AddSetForm(
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("RIR") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                     )
                     OutlinedTextField(
                         value = rpeText,
@@ -5487,7 +5494,7 @@ private fun AddSetForm(
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("RPE") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                     )
                 }
             } else {
@@ -5498,7 +5505,7 @@ private fun AddSetForm(
                         modifier = Modifier.weight(1f),
                         label = { Text("RIR") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                     )
                     OutlinedTextField(
                         value = rpeText,
@@ -5506,7 +5513,7 @@ private fun AddSetForm(
                         modifier = Modifier.weight(1f),
                         label = { Text("RPE") },
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next)
                     )
                 }
             }
