@@ -40,49 +40,6 @@ def get_workout_ref(user_id, workout_id):
     return workout_ref, workout_doc
 
 
-def update_pr_if_needed(user_id, exercise_id, set_payload, workout_id, workout_exercise_id, set_id):
-    try:
-        if not exercise_id:
-            return
-        prs_ref = db.collection("users").document(user_id).collection("prs").document(exercise_id)
-        existing = prs_ref.get()
-        existing_data = existing.to_dict() if existing.exists else {}
-        existing_weight = existing_data.get("weight", 0) or 0
-        existing_reps = existing_data.get("reps", 0) or 0
-
-        incoming_weight = set_payload.get("weight", 0) or 0
-        incoming_reps = set_payload.get("reps", 0) or 0
-
-        better_pr = bool(set_payload.get("isPR"))
-        if not better_pr:
-            if incoming_weight > existing_weight:
-                better_pr = True
-            elif incoming_weight == existing_weight and incoming_reps > existing_reps:
-                better_pr = True
-
-        if better_pr:
-            pr_payload = {
-                "exerciseId": exercise_id,
-                "weight": incoming_weight,
-                "reps": incoming_reps,
-                "rir": set_payload.get("rir"),
-                "rpe": set_payload.get("rpe"),
-                "workoutId": workout_id,
-                "workoutExerciseId": workout_exercise_id,
-                "setId": set_id,
-                "updatedAt": firestore.SERVER_TIMESTAMP,
-            }
-
-            if existing.exists and existing_data.get("createdAt"):
-                pr_payload["createdAt"] = existing_data.get("createdAt")
-            else:
-                pr_payload["createdAt"] = firestore.SERVER_TIMESTAMP
-
-            prs_ref.set(pr_payload, merge=True)
-    except Exception as pr_error:
-        raise pr_error
-
-
 def process_workout_exercises(user_id, workout_id, exercises_data):
     """
     Iterates through exercises and sets, computes derived fields, and updates PRs.
@@ -108,6 +65,31 @@ def process_workout_exercises(user_id, workout_id, exercises_data):
         sets_data = processed_exercise.get("sets", [])
         processed_sets = []
 
+        # Prepare for PR check - Fetch existing PR once per exercise
+        existing_pr_doc = None
+        existing_pr_data = {}
+        existing_weight = 0
+        existing_reps = 0
+        pr_fetch_failed = False
+
+        if exercise_id:
+            try:
+                prs_ref = db.collection("users").document(user_id).collection("prs").document(exercise_id)
+                existing_pr_doc = prs_ref.get()
+                if existing_pr_doc.exists:
+                    existing_pr_data = existing_pr_doc.to_dict()
+                    existing_weight = existing_pr_data.get("weight", 0) or 0
+                    existing_reps = existing_pr_data.get("reps", 0) or 0
+            except Exception as e:
+                logging.error(f"Failed to fetch PR for user {user_id}, exercise {exercise_id}: {e}")
+                pr_fetch_failed = True
+
+        # Track the best candidate from this workout
+        current_best_weight = existing_weight
+        current_best_reps = existing_reps
+        best_pr_candidate = None
+        pr_update_needed = False
+
         for set_index, set_item in enumerate(sets_data):
             if not isinstance(set_item, dict):
                 continue
@@ -127,26 +109,61 @@ def process_workout_exercises(user_id, workout_id, exercises_data):
             processed_set["rpe"] = compute_rpe(rir_value, rpe_value)
             processed_set["volume"] = compute_volume(reps_value, weight_value)
 
-            # Check PR
-            # We use the set ID we just ensured exists
-            set_id = processed_set["id"]
-            # We use the exercise index or ID for workout_exercise_id
-            workout_exercise_id = str(exercise_index)
+            # Check PR logic
+            incoming_weight = processed_set.get("weight", 0) or 0
+            incoming_reps = processed_set.get("reps", 0) or 0
 
-            try:
-                update_pr_if_needed(
-                    user_id=user_id,
-                    exercise_id=exercise_id,
-                    set_payload=processed_set,
-                    workout_id=workout_id,
-                    workout_exercise_id=workout_exercise_id,
-                    set_id=set_id
-                )
-            except Exception as e:
-                logging.error(f"Failed to update PR for user {user_id}, exercise {exercise_id}: {e}")
-                # We continue processing even if PR update fails
+            is_better = False
+            explicit_pr = bool(processed_set.get("isPR"))
+
+            if explicit_pr:
+                is_better = True
+            else:
+                if incoming_weight > current_best_weight:
+                    is_better = True
+                elif incoming_weight == current_best_weight and incoming_reps > current_best_reps:
+                    is_better = True
+
+            if is_better:
+                current_best_weight = incoming_weight
+                current_best_reps = incoming_reps
+                best_pr_candidate = {
+                    "set": processed_set,
+                    "workoutExerciseId": str(exercise_index),
+                    "setId": processed_set["id"]
+                }
+                pr_update_needed = True
 
             processed_sets.append(processed_set)
+
+        # After processing all sets, write the PR if needed
+        if pr_update_needed and best_pr_candidate and exercise_id and not pr_fetch_failed:
+            try:
+                candidate_set = best_pr_candidate["set"]
+                pr_payload = {
+                    "exerciseId": exercise_id,
+                    "weight": candidate_set.get("weight", 0) or 0,
+                    "reps": candidate_set.get("reps", 0) or 0,
+                    "rir": candidate_set.get("rir"),
+                    "rpe": candidate_set.get("rpe"),
+                    "workoutId": workout_id,
+                    "workoutExerciseId": best_pr_candidate["workoutExerciseId"],
+                    "setId": best_pr_candidate["setId"],
+                    "updatedAt": firestore.SERVER_TIMESTAMP,
+                }
+
+                # Preserve original createdAt if it existed
+                if existing_pr_data and existing_pr_data.get("createdAt"):
+                     pr_payload["createdAt"] = existing_pr_data.get("createdAt")
+                else:
+                     pr_payload["createdAt"] = firestore.SERVER_TIMESTAMP
+
+                # Write to DB
+                prs_ref = db.collection("users").document(user_id).collection("prs").document(exercise_id)
+                prs_ref.set(pr_payload, merge=True)
+
+            except Exception as e:
+                logging.error(f"Failed to update PR for user {user_id}, exercise {exercise_id}: {e}")
 
         processed_exercise["sets"] = processed_sets
         processed_exercises.append(processed_exercise)
