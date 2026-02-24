@@ -90,10 +90,10 @@ class MainViewModel(
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
-                        ?: workoutsResult.exceptionOrNull()?.message
-                        ?: workoutPlansResult.exceptionOrNull()?.message
-                        ?: exercisesResult.exceptionOrNull()?.message
+                    errorMessage = (userResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message)
+                        ?: (workoutsResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message)
+                        ?: (workoutPlansResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message)
+                        ?: (exercisesResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message)
                 )
             }
 
@@ -156,7 +156,7 @@ class MainViewModel(
                     onFailure = { error ->
                         state.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not load workout"),
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not load workout"),
                             selectedWorkoutId = workoutId
                         )
                     }
@@ -576,8 +576,8 @@ class MainViewModel(
                 workouts = workoutsResult.getOrDefault(state.workouts),
                 exercises = exercisesResult.getOrDefault(state.exercises),
                 isActionRunning = false,
-                errorMessage = workoutsResult.exceptionOrNull()?.message
-                    ?: exercisesResult.exceptionOrNull()?.message,
+                errorMessage = (workoutsResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message)
+                    ?: (exercisesResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message),
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutId = createdWorkoutId ?: state.recentlyCreatedWorkoutId,
                 recentlyCompletedWorkoutId = completedWorkoutId ?: state.recentlyCompletedWorkoutId
@@ -595,7 +595,7 @@ class MainViewModel(
             state.copy(
                 workoutPlans = workoutPlansResult.getOrDefault(state.workoutPlans),
                 isActionRunning = false,
-                errorMessage = workoutPlansResult.exceptionOrNull()?.message,
+                errorMessage = workoutPlansResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message,
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutPlanId = createdWorkoutPlanId ?: state.recentlyCreatedWorkoutPlanId
             )
@@ -604,4 +604,8 @@ class MainViewModel(
 
     private fun Throwable.userFacing(fallback: String): String =
         message?.takeIf { it.isNotBlank() } ?: fallback
+
+    private fun isForbidden(throwable: Throwable?): Boolean {
+        return throwable is retrofit2.HttpException && throwable.code() == 403
+    }
 }
