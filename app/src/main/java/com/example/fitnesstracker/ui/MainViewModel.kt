@@ -12,6 +12,7 @@ import com.example.fitnesstracker.data.remote.WorkoutItem
 import com.example.fitnesstracker.data.remote.WorkoutPlan
 import com.example.fitnesstracker.data.remote.WorkoutSet
 import com.example.fitnesstracker.data.remote.WorkoutSetRequest
+import retrofit2.HttpException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -84,16 +85,18 @@ class MainViewModel(
                 val workouts = workoutsResult.getOrNull() ?: state.workouts
                 val workoutPlans = workoutPlansResult.getOrNull() ?: state.workoutPlans
                 val exercises = exercisesResult.getOrNull() ?: state.exercises
+
+                val error = listOf(userResult, workoutsResult, workoutPlansResult, exercisesResult)
+                    .mapNotNull { it.exceptionOrNull() }
+                    .firstOrNull { !isForbidden(it) }
+
                 state.copy(
                     user = userResult.getOrNull() ?: state.user,
                     workouts = workouts,
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
-                        ?: workoutsResult.exceptionOrNull()?.message
-                        ?: workoutPlansResult.exceptionOrNull()?.message
-                        ?: exercisesResult.exceptionOrNull()?.message
+                    errorMessage = error?.message
                 )
             }
 
@@ -156,7 +159,7 @@ class MainViewModel(
                     onFailure = { error ->
                         state.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not load workout"),
+                            errorMessage = if (!isForbidden(error)) error.userFacing("Could not load workout") else null,
                             selectedWorkoutId = workoutId
                         )
                     }
@@ -224,7 +227,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not load workout plan")
+                            errorMessage = if (!isForbidden(error)) error.userFacing("Could not load workout plan") else null
                         )
                     }
                 }
@@ -302,7 +305,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not create workout plan")
+                            errorMessage = if (!isForbidden(error)) error.userFacing("Could not create workout plan") else null
                         )
                     }
                 }
@@ -324,7 +327,7 @@ class MainViewModel(
                     refreshAfterAction(infoMessage = "Exercise saved")
                 },
                 onFailure = { error ->
-                    _uiState.update { it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not save exercise")) }
+                    _uiState.update { it.copy(isActionRunning = false, errorMessage = if (!isForbidden(error)) error.userFacing("Could not save exercise") else null) }
                 }
             )
         }
@@ -343,7 +346,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not update profile")
+                            errorMessage = if (!isForbidden(error)) error.userFacing("Could not update profile") else null
                         )
                     }
                 }
@@ -456,7 +459,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not save workout")
+                            errorMessage = if (!isForbidden(error)) error.userFacing("Could not save workout") else null
                         )
                     }
                 }
@@ -555,12 +558,16 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not update workout")
+                            errorMessage = if (!isForbidden(error)) error.userFacing("Could not update workout") else null
                         )
                     }
                 }
             )
         }
+    }
+
+    private fun isForbidden(e: Throwable?): Boolean {
+        return e is HttpException && e.code() == 403
     }
 
     private suspend fun refreshAfterAction(
@@ -572,12 +579,15 @@ class MainViewModel(
         val workoutsResult = repository.fetchWorkouts()
         val exercisesResult = repository.fetchExercises()
         _uiState.update { state ->
+            val error = listOf(workoutsResult, exercisesResult)
+                .mapNotNull { it.exceptionOrNull() }
+                .firstOrNull { !isForbidden(it) }
+
             state.copy(
                 workouts = workoutsResult.getOrDefault(state.workouts),
                 exercises = exercisesResult.getOrDefault(state.exercises),
                 isActionRunning = false,
-                errorMessage = workoutsResult.exceptionOrNull()?.message
-                    ?: exercisesResult.exceptionOrNull()?.message,
+                errorMessage = error?.message,
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutId = createdWorkoutId ?: state.recentlyCreatedWorkoutId,
                 recentlyCompletedWorkoutId = completedWorkoutId ?: state.recentlyCompletedWorkoutId
@@ -595,7 +605,7 @@ class MainViewModel(
             state.copy(
                 workoutPlans = workoutPlansResult.getOrDefault(state.workoutPlans),
                 isActionRunning = false,
-                errorMessage = workoutPlansResult.exceptionOrNull()?.message,
+                errorMessage = if (!isForbidden(workoutPlansResult.exceptionOrNull())) workoutPlansResult.exceptionOrNull()?.message else null,
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutPlanId = createdWorkoutPlanId ?: state.recentlyCreatedWorkoutPlanId
             )
