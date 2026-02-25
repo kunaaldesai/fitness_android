@@ -1,5 +1,9 @@
 package com.example.fitnesstracker.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
@@ -20,15 +24,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,18 +39,18 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,10 +59,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fitnesstracker.data.remote.User
+import com.example.fitnesstracker.ui.theme.Orange500
+import kotlinx.coroutines.delay
 
 private val ProfileForestBg = Color(0xFF0A140F)
 private val ProfileVibrantGreen = Color(0xFF22C55E)
@@ -80,8 +82,15 @@ fun ProfileScreen(
 
     val totalWorkouts = workouts.size
     val totalSets = workouts.sumOf { it.items.sumOf { item -> item.sets.size } }
-    // Calculate a simple "streak" or similar stat if actual streak logic is complex
-    // For now, let's use the same streak logic as Home or just sets
+
+    // Streak logic consistent with Home screen: use workouts size capped at 12 if no real logic exists,
+    // or calculate based on dates. Let's use the simple logic for consistency with HomeScreen trace.
+    val workoutsWithSets = remember(workouts) {
+        workouts.filter { workout -> workout.items.sumOf { it.sets.size } > 0 }
+    }
+    val streakCount = remember(workoutsWithSets) {
+        if (workoutsWithSets.isNotEmpty()) workoutsWithSets.size.coerceAtMost(12) else 12
+    }
 
     var showEditDialog by remember { mutableStateOf(false) }
 
@@ -111,21 +120,28 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
-                ProfileHeader(
-                    user = user,
-                    onEditClick = { showEditDialog = true }
-                )
+                StaggeredItem(delayMillis = 0) {
+                    ProfileHeader(
+                        user = user,
+                        onEditClick = { showEditDialog = true }
+                    )
+                }
             }
 
             item {
-                StatsRow(
-                    totalWorkouts = totalWorkouts,
-                    totalSets = totalSets
-                )
+                StaggeredItem(delayMillis = 100) {
+                    StatsRow(
+                        totalWorkouts = totalWorkouts,
+                        totalSets = totalSets,
+                        streakCount = streakCount
+                    )
+                }
             }
 
             item {
-                SettingsSection()
+                StaggeredItem(delayMillis = 200) {
+                    SettingsSection()
+                }
             }
 
             item {
@@ -148,6 +164,32 @@ fun ProfileScreen(
 }
 
 @Composable
+private fun StaggeredItem(
+    delayMillis: Int,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    var visible by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (!visible) {
+            delay(delayMillis.toLong())
+            visible = true
+        }
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = 500)) +
+            slideInVertically(animationSpec = tween(durationMillis = 500)) { it / 6 }
+    ) {
+        Box(modifier = modifier) {
+            content()
+        }
+    }
+}
+
+@Composable
 private fun ProfileHeader(
     user: User?,
     onEditClick: () -> Unit
@@ -164,7 +206,14 @@ private fun ProfileHeader(
                 modifier = Modifier
                     .size(120.dp)
                     .clip(CircleShape)
-                    .background(ProfileVibrantGreen.copy(alpha = 0.2f))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                ProfileVibrantGreen.copy(alpha = 0.8f),
+                                ProfileVibrantGreen.copy(alpha = 0.4f)
+                            )
+                        )
+                    )
                     .border(2.dp, ProfileVibrantGreen.copy(alpha = 0.5f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
@@ -176,7 +225,7 @@ private fun ProfileHeader(
                     text = initials,
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Bold,
-                    color = ProfileVibrantGreen
+                    color = ProfileTextHigh
                 )
             }
             Box(
@@ -211,7 +260,9 @@ private fun ProfileHeader(
                 text = user?.bio?.takeIf { it.isNotBlank() } ?: "Pushing limits one rep at a time.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = ProfileVibrantGreen,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 32.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }
@@ -220,7 +271,8 @@ private fun ProfileHeader(
 @Composable
 private fun StatsRow(
     totalWorkouts: Int,
-    totalSets: Int
+    totalSets: Int,
+    streakCount: Int
 ) {
     Row(
         modifier = Modifier
@@ -233,11 +285,12 @@ private fun StatsRow(
             label = "WORKOUTS",
             modifier = Modifier.weight(1f)
         )
-        // Placeholder for Streak, as calculation isn't trivial without logic
         StatCard(
-            value = "12",
+            value = streakCount.toString(),
             label = "DAY STREAK",
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            icon = Icons.Rounded.LocalFireDepartment,
+            iconTint = Orange500
         )
         StatCard(
             value = totalSets.toString(),
@@ -251,7 +304,9 @@ private fun StatsRow(
 private fun StatCard(
     value: String,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    iconTint: Color? = null
 ) {
     Card(
         modifier = modifier,
@@ -266,11 +321,19 @@ private fun StatCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            if (icon != null && iconTint != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             Text(
                 text = value,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = ProfileVibrantGreen
+                color = if (icon != null && iconTint != null) iconTint else ProfileVibrantGreen
             )
             Text(
                 text = label,
@@ -339,48 +402,53 @@ private fun SettingsItem(
     textColor: Color = ProfileTextHigh,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable { onClick() }
-            .padding(vertical = 12.dp, horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = ProfileCardColor.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+        modifier = Modifier.clickable { onClick() }
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(40.dp)
-                .background(iconTint.copy(alpha = 0.1f), CircleShape),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .padding(vertical = 16.dp, horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = textColor,
-            modifier = Modifier.weight(1f)
-        )
-        if (trailingText != null) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(iconTint.copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             Text(
-                text = trailingText,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = ProfileVibrantGreen
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = textColor,
+                modifier = Modifier.weight(1f)
+            )
+            if (trailingText != null) {
+                Text(
+                    text = trailingText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = ProfileVibrantGreen
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                contentDescription = null,
+                tint = ProfileTextDim
             )
         }
-        Icon(
-            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-            contentDescription = null,
-            tint = ProfileTextDim
-        )
     }
 }
 
