@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import retrofit2.HttpException
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -90,10 +91,7 @@ class MainViewModel(
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
-                        ?: workoutsResult.exceptionOrNull()?.message
-                        ?: workoutPlansResult.exceptionOrNull()?.message
-                        ?: exercisesResult.exceptionOrNull()?.message
+                    errorMessage = getErrorMessage(userResult, workoutsResult, workoutPlansResult, exercisesResult)
                 )
             }
 
@@ -156,7 +154,7 @@ class MainViewModel(
                     onFailure = { error ->
                         state.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not load workout"),
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not load workout"),
                             selectedWorkoutId = workoutId
                         )
                     }
@@ -224,7 +222,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not load workout plan")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not load workout plan")
                         )
                     }
                 }
@@ -302,7 +300,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not create workout plan")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not create workout plan")
                         )
                     }
                 }
@@ -324,7 +322,7 @@ class MainViewModel(
                     refreshAfterAction(infoMessage = "Exercise saved")
                 },
                 onFailure = { error ->
-                    _uiState.update { it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not save exercise")) }
+                    _uiState.update { it.copy(isActionRunning = false, errorMessage = if (isForbidden(error)) null else error.userFacing("Could not save exercise")) }
                 }
             )
         }
@@ -343,7 +341,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not update profile")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not update profile")
                         )
                     }
                 }
@@ -456,7 +454,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not save workout")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not save workout")
                         )
                     }
                 }
@@ -555,7 +553,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not update workout")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not update workout")
                         )
                     }
                 }
@@ -576,8 +574,7 @@ class MainViewModel(
                 workouts = workoutsResult.getOrDefault(state.workouts),
                 exercises = exercisesResult.getOrDefault(state.exercises),
                 isActionRunning = false,
-                errorMessage = workoutsResult.exceptionOrNull()?.message
-                    ?: exercisesResult.exceptionOrNull()?.message,
+                errorMessage = getErrorMessage(workoutsResult, exercisesResult),
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutId = createdWorkoutId ?: state.recentlyCreatedWorkoutId,
                 recentlyCompletedWorkoutId = completedWorkoutId ?: state.recentlyCompletedWorkoutId
@@ -595,7 +592,7 @@ class MainViewModel(
             state.copy(
                 workoutPlans = workoutPlansResult.getOrDefault(state.workoutPlans),
                 isActionRunning = false,
-                errorMessage = workoutPlansResult.exceptionOrNull()?.message,
+                errorMessage = getErrorMessage(workoutPlansResult),
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutPlanId = createdWorkoutPlanId ?: state.recentlyCreatedWorkoutPlanId
             )
@@ -604,4 +601,25 @@ class MainViewModel(
 
     private fun Throwable.userFacing(fallback: String): String =
         message?.takeIf { it.isNotBlank() } ?: fallback
+
+    private fun isForbidden(error: Throwable?): Boolean =
+        error is HttpException && error.code() == 403
+
+    private fun getErrorMessage(r1: Result<*>): String? {
+        return checkError(r1.exceptionOrNull())
+    }
+
+    private fun getErrorMessage(r1: Result<*>, r2: Result<*>): String? {
+        return checkError(r1.exceptionOrNull() ?: r2.exceptionOrNull())
+    }
+
+    private fun getErrorMessage(r1: Result<*>, r2: Result<*>, r3: Result<*>, r4: Result<*>): String? {
+        return checkError(r1.exceptionOrNull() ?: r2.exceptionOrNull() ?: r3.exceptionOrNull() ?: r4.exceptionOrNull())
+    }
+
+    private fun checkError(error: Throwable?): String? {
+        if (error == null) return null
+        if (isForbidden(error)) return null
+        return error.message
+    }
 }
