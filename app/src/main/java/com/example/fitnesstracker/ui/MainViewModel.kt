@@ -12,6 +12,7 @@ import com.example.fitnesstracker.data.remote.WorkoutItem
 import com.example.fitnesstracker.data.remote.WorkoutPlan
 import com.example.fitnesstracker.data.remote.WorkoutSet
 import com.example.fitnesstracker.data.remote.WorkoutSetRequest
+import retrofit2.HttpException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -90,7 +91,11 @@ class MainViewModel(
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
+                    errorMessage = if (isForbidden(userResult.exceptionOrNull()) ||
+                        isForbidden(workoutsResult.exceptionOrNull()) ||
+                        isForbidden(workoutPlansResult.exceptionOrNull()) ||
+                        isForbidden(exercisesResult.exceptionOrNull())) null
+                    else userResult.exceptionOrNull()?.message
                         ?: workoutsResult.exceptionOrNull()?.message
                         ?: workoutPlansResult.exceptionOrNull()?.message
                         ?: exercisesResult.exceptionOrNull()?.message
@@ -156,7 +161,7 @@ class MainViewModel(
                     onFailure = { error ->
                         state.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not load workout"),
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not load workout"),
                             selectedWorkoutId = workoutId
                         )
                     }
@@ -224,7 +229,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not load workout plan")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not load workout plan")
                         )
                     }
                 }
@@ -302,7 +307,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not create workout plan")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not create workout plan")
                         )
                     }
                 }
@@ -324,7 +329,12 @@ class MainViewModel(
                     refreshAfterAction(infoMessage = "Exercise saved")
                 },
                 onFailure = { error ->
-                    _uiState.update { it.copy(isActionRunning = false, errorMessage = error.userFacing("Could not save exercise")) }
+                    _uiState.update {
+                        it.copy(
+                            isActionRunning = false,
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not save exercise")
+                        )
+                    }
                 }
             )
         }
@@ -343,7 +353,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not update profile")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not update profile")
                         )
                     }
                 }
@@ -456,7 +466,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not save workout")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not save workout")
                         )
                     }
                 }
@@ -555,7 +565,7 @@ class MainViewModel(
                     _uiState.update {
                         it.copy(
                             isActionRunning = false,
-                            errorMessage = error.userFacing("Could not update workout")
+                            errorMessage = if (isForbidden(error)) null else error.userFacing("Could not update workout")
                         )
                     }
                 }
@@ -576,7 +586,9 @@ class MainViewModel(
                 workouts = workoutsResult.getOrDefault(state.workouts),
                 exercises = exercisesResult.getOrDefault(state.exercises),
                 isActionRunning = false,
-                errorMessage = workoutsResult.exceptionOrNull()?.message
+                errorMessage = if (isForbidden(workoutsResult.exceptionOrNull()) ||
+                    isForbidden(exercisesResult.exceptionOrNull())) null
+                else workoutsResult.exceptionOrNull()?.message
                     ?: exercisesResult.exceptionOrNull()?.message,
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutId = createdWorkoutId ?: state.recentlyCreatedWorkoutId,
@@ -595,11 +607,16 @@ class MainViewModel(
             state.copy(
                 workoutPlans = workoutPlansResult.getOrDefault(state.workoutPlans),
                 isActionRunning = false,
-                errorMessage = workoutPlansResult.exceptionOrNull()?.message,
+                errorMessage = if (isForbidden(workoutPlansResult.exceptionOrNull())) null
+                else workoutPlansResult.exceptionOrNull()?.message,
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutPlanId = createdWorkoutPlanId ?: state.recentlyCreatedWorkoutPlanId
             )
         }
+    }
+
+    private fun isForbidden(e: Throwable?): Boolean {
+        return e is HttpException && e.code() == 403
     }
 
     private fun Throwable.userFacing(fallback: String): String =

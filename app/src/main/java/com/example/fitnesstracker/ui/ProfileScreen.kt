@@ -125,7 +125,9 @@ fun ProfileScreen(
             }
 
             item {
-                SettingsSection()
+                SettingsSection(
+                    onEditClick = { showEditDialog = true }
+                )
             }
 
             item {
@@ -284,7 +286,9 @@ private fun StatCard(
 }
 
 @Composable
-private fun SettingsSection() {
+private fun SettingsSection(
+    onEditClick: () -> Unit
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -305,7 +309,7 @@ private fun SettingsSection() {
             SettingsItem(
                 icon = Icons.Rounded.Person,
                 label = "Edit Profile",
-                onClick = {}
+                onClick = onEditClick
             )
             SettingsItem(
                 icon = Icons.Rounded.Notifications,
