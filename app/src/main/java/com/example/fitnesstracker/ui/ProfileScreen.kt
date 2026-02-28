@@ -1,8 +1,8 @@
 package com.example.fitnesstracker.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.Edit
@@ -38,11 +37,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,14 +55,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.fitnesstracker.data.remote.User
 
 private val ProfileForestBg = Color(0xFF0A140F)
 private val ProfileVibrantGreen = Color(0xFF22C55E)
-private val ProfileCardColor = Color(0xB20F1C16)
 private val ProfileTextHigh = Color(0xFFF0FDF4)
 private val ProfileTextDim = Color(0xFF86A694)
 
@@ -80,8 +75,7 @@ fun ProfileScreen(
 
     val totalWorkouts = workouts.size
     val totalSets = workouts.sumOf { it.items.sumOf { item -> item.sets.size } }
-    // Calculate a simple "streak" or similar stat if actual streak logic is complex
-    // For now, let's use the same streak logic as Home or just sets
+    val streak = if (workouts.isEmpty()) 0 else 12 // Using a placeholder for streak since complex logic is not requested here, but it matches the previous implementation's behavior
 
     var showEditDialog by remember { mutableStateOf(false) }
 
@@ -111,21 +105,28 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
-                ProfileHeader(
-                    user = user,
-                    onEditClick = { showEditDialog = true }
-                )
+                StaggeredItem(delayMillis = 0) {
+                    ProfileHeader(
+                        user = user,
+                        onEditClick = { showEditDialog = true }
+                    )
+                }
             }
 
             item {
-                StatsRow(
-                    totalWorkouts = totalWorkouts,
-                    totalSets = totalSets
-                )
+                StaggeredItem(delayMillis = 100) {
+                    StatsRow(
+                        totalWorkouts = totalWorkouts,
+                        streak = streak,
+                        totalSets = totalSets
+                    )
+                }
             }
 
             item {
-                SettingsSection()
+                StaggeredItem(delayMillis = 200) {
+                    SettingsSection(onEditClick = { showEditDialog = true })
+                }
             }
 
             item {
@@ -155,33 +156,17 @@ private fun ProfileHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 40.dp),
+            .padding(top = 48.dp, bottom = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Box {
+        val fullName = listOfNotNull(user?.firstName, user?.lastName).joinToString(" ").ifBlank { "Fitness User" }
+
+        Box(contentAlignment = Alignment.BottomEnd) {
+            ProfileAvatar(userName = fullName, modifier = Modifier.size(100.dp))
+
             Box(
                 modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(ProfileVibrantGreen.copy(alpha = 0.2f))
-                    .border(2.dp, ProfileVibrantGreen.copy(alpha = 0.5f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                val initials = listOfNotNull(user?.firstName?.firstOrNull(), user?.lastName?.firstOrNull())
-                    .joinToString("")
-                    .uppercase()
-                    .ifBlank { "U" }
-                Text(
-                    text = initials,
-                    style = MaterialTheme.typography.displayMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = ProfileVibrantGreen
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
                     .offset(x = 6.dp, y = 6.dp)
                     .size(40.dp)
                     .clip(CircleShape)
@@ -200,7 +185,6 @@ private fun ProfileHeader(
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val fullName = listOfNotNull(user?.firstName, user?.lastName).joinToString(" ").ifBlank { "Fitness User" }
             Text(
                 text = fullName,
                 style = MaterialTheme.typography.headlineSmall,
@@ -220,6 +204,7 @@ private fun ProfileHeader(
 @Composable
 private fun StatsRow(
     totalWorkouts: Int,
+    streak: Int,
     totalSets: Int
 ) {
     Row(
@@ -228,63 +213,43 @@ private fun StatsRow(
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        StatCard(
-            value = totalWorkouts.toString(),
-            label = "WORKOUTS",
+        StatSummaryCard(
+            summary = StatSummary(
+                title = "WORKOUTS",
+                value = totalWorkouts.toString(),
+                accent = Color(0xFF10B981),
+                icon = Icons.Rounded.FitnessCenter,
+                progress = 0.7f
+            ),
             modifier = Modifier.weight(1f)
         )
-        // Placeholder for Streak, as calculation isn't trivial without logic
-        StatCard(
-            value = "12",
-            label = "DAY STREAK",
+
+        StatSummaryCard(
+            summary = StatSummary(
+                title = "DAY STREAK",
+                value = streak.toString(),
+                accent = Color(0xFFF59E0B),
+                icon = Icons.Rounded.LocalFireDepartment,
+                progress = 0.85f
+            ),
             modifier = Modifier.weight(1f)
         )
-        StatCard(
-            value = totalSets.toString(),
-            label = "TOTAL SETS",
+
+        StatSummaryCard(
+            summary = StatSummary(
+                title = "TOTAL SETS",
+                value = totalSets.toString(),
+                accent = Color(0xFF3B82F6),
+                icon = Icons.Rounded.Settings,
+                progress = 0.4f
+            ),
             modifier = Modifier.weight(1f)
         )
     }
 }
 
 @Composable
-private fun StatCard(
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = ProfileCardColor),
-        border = BorderStroke(1.dp, ProfileVibrantGreen.copy(alpha = 0.2f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 20.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = ProfileVibrantGreen
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = ProfileTextDim,
-                fontSize = 10.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun SettingsSection() {
+private fun SettingsSection(onEditClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -305,7 +270,7 @@ private fun SettingsSection() {
             SettingsItem(
                 icon = Icons.Rounded.Person,
                 label = "Edit Profile",
-                onClick = {}
+                onClick = onEditClick
             )
             SettingsItem(
                 icon = Icons.Rounded.Notifications,
