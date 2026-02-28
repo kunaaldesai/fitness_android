@@ -163,7 +163,7 @@ import kotlinx.serialization.json.contentOrNull
 
 private val compactWidthThreshold = 520.dp
 
-private data class StatSummary(
+data class StatSummary(
     val title: String,
     val value: String,
     val accent: Color,
@@ -711,7 +711,7 @@ private fun ExploreScreen(
 }
 
 @Composable
-private fun StaggeredItem(
+fun StaggeredItem(
     delayMillis: Int,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
@@ -774,7 +774,7 @@ private fun HomeHeader(
 }
 
 @Composable
-private fun ProfileAvatar(
+fun ProfileAvatar(
     userName: String,
     modifier: Modifier = Modifier
 ) {
@@ -916,7 +916,7 @@ private fun StatsSummaryRow(stats: List<StatSummary>, modifier: Modifier = Modif
 }
 
 @Composable
-private fun StatSummaryCard(summary: StatSummary, modifier: Modifier = Modifier) {
+fun StatSummaryCard(summary: StatSummary, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(18.dp),

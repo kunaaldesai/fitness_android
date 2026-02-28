@@ -24,6 +24,7 @@ import kotlinx.serialization.json.contentOrNull
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
+import retrofit2.HttpException
 
 data class FitnessUiState(
     val user: User? = null,
@@ -90,10 +91,12 @@ class MainViewModel(
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
-                        ?: workoutsResult.exceptionOrNull()?.message
-                        ?: workoutPlansResult.exceptionOrNull()?.message
-                        ?: exercisesResult.exceptionOrNull()?.message
+                    errorMessage = getErrorMessage(
+                        userResult.exceptionOrNull(),
+                        workoutsResult.exceptionOrNull(),
+                        workoutPlansResult.exceptionOrNull(),
+                        exercisesResult.exceptionOrNull()
+                    )
                 )
             }
 
@@ -576,8 +579,10 @@ class MainViewModel(
                 workouts = workoutsResult.getOrDefault(state.workouts),
                 exercises = exercisesResult.getOrDefault(state.exercises),
                 isActionRunning = false,
-                errorMessage = workoutsResult.exceptionOrNull()?.message
-                    ?: exercisesResult.exceptionOrNull()?.message,
+                errorMessage = getErrorMessage(
+                    workoutsResult.exceptionOrNull(),
+                    exercisesResult.exceptionOrNull()
+                ),
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutId = createdWorkoutId ?: state.recentlyCreatedWorkoutId,
                 recentlyCompletedWorkoutId = completedWorkoutId ?: state.recentlyCompletedWorkoutId
@@ -595,13 +600,31 @@ class MainViewModel(
             state.copy(
                 workoutPlans = workoutPlansResult.getOrDefault(state.workoutPlans),
                 isActionRunning = false,
-                errorMessage = workoutPlansResult.exceptionOrNull()?.message,
+                errorMessage = getErrorMessage(workoutPlansResult.exceptionOrNull()),
                 infoMessage = infoMessage ?: state.infoMessage,
                 recentlyCreatedWorkoutPlanId = createdWorkoutPlanId ?: state.recentlyCreatedWorkoutPlanId
             )
         }
     }
 
+
+    private fun isForbidden(throwable: Throwable?): Boolean {
+        return throwable is HttpException && throwable.code() == 403
+    }
+
+    private fun getErrorMessage(t1: Throwable?, t2: Throwable?, t3: Throwable?, t4: Throwable?): String? {
+        return listOfNotNull(t1, t2, t3, t4).firstOrNull { !isForbidden(it) }?.message
+    }
+
+    private fun getErrorMessage(t1: Throwable?, t2: Throwable?): String? {
+        return listOfNotNull(t1, t2).firstOrNull { !isForbidden(it) }?.message
+    }
+
+    private fun getErrorMessage(t1: Throwable?): String? {
+        return t1?.takeUnless { isForbidden(it) }?.message
+    }
+
     private fun Throwable.userFacing(fallback: String): String =
+
         message?.takeIf { it.isNotBlank() } ?: fallback
 }
