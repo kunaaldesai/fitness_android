@@ -1,5 +1,7 @@
 package com.example.fitnesstracker.ui
 
+import retrofit2.HttpException
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.fitnesstracker.data.FitnessRepository
@@ -24,6 +26,7 @@ import kotlinx.serialization.json.contentOrNull
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
+
 
 data class FitnessUiState(
     val user: User? = null,
@@ -61,9 +64,14 @@ data class WorkoutSetUpdateEntry(
     val rir: Double? = null
 )
 
+
 class MainViewModel(
     private val repository: FitnessRepository = FitnessRepository()
 ) : ViewModel() {
+
+    private fun isForbidden(error: Throwable?): Boolean {
+        return error is HttpException && error.code() == 403
+    }
 
     private val _uiState = MutableStateFlow(FitnessUiState())
     val uiState: StateFlow<FitnessUiState> = _uiState.asStateFlow()
@@ -90,10 +98,10 @@ class MainViewModel(
                     workoutPlans = workoutPlans,
                     exercises = exercises,
                     isLoading = false,
-                    errorMessage = userResult.exceptionOrNull()?.message
-                        ?: workoutsResult.exceptionOrNull()?.message
-                        ?: workoutPlansResult.exceptionOrNull()?.message
-                        ?: exercisesResult.exceptionOrNull()?.message
+                    errorMessage = userResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message
+                        ?: workoutsResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message
+                        ?: workoutPlansResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message
+                        ?: exercisesResult.exceptionOrNull()?.takeUnless { isForbidden(it) }?.message
                 )
             }
 
@@ -602,6 +610,8 @@ class MainViewModel(
         }
     }
 
-    private fun Throwable.userFacing(fallback: String): String =
-        message?.takeIf { it.isNotBlank() } ?: fallback
+    private fun Throwable.userFacing(fallback: String): String? {
+        if (this is retrofit2.HttpException && this.code() == 403) return null
+        return message?.takeIf { it.isNotBlank() } ?: fallback
+    }
 }
